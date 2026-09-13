@@ -1,7 +1,8 @@
 import { test, expect } from "@playwright/test";
-import { loginOwner, desktopScope } from "./helpers";
+import { loginOwner, desktopScope, skipUnlessLive } from "./helpers";
 
 test("updating an order's stage shows the toast and strikes through completed rows", async ({ page }) => {
+  skipUnlessLive(test);
   await loginOwner(page);
   const main = desktopScope(page);
 

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ds/Button";
 import { Input } from "@/components/ds/Input";
 import { Logo } from "@/components/app/Logo";
-import { useSession, FIXTURE_LOGIN_PASSWORD } from "@/lib/session/SessionContext";
+import { useSession } from "@/lib/session/SessionContext";
 
 export default function OwnerLoginPage() {
   const router = useRouter();
@@ -25,15 +25,10 @@ export default function OwnerLoginPage() {
     setLoading(false);
     if (!result.ok) {
       if (result.code === "account_disabled") setDisabledNotice(true);
-      else setError(result.message);
+      else setError(result.message ?? "Incorrect email or password");
       return;
     }
     router.push("/owner/dashboard");
-  }
-
-  function fillDemo() {
-    setEmail("owner1@example-fixture.test");
-    setPassword(FIXTURE_LOGIN_PASSWORD);
   }
 
   return (
@@ -59,13 +54,6 @@ export default function OwnerLoginPage() {
             {loading ? "Logging in…" : "Log in"}
           </Button>
         </form>
-        <button
-          type="button"
-          onClick={fillDemo}
-          style={{ marginTop: 14, background: "none", border: 0, color: "var(--text-link)", fontSize: 13, cursor: "pointer", padding: 0 }}
-        >
-          Fill demo owner credentials (Meera Boutique, active)
-        </button>
         <p style={{ marginTop: 18, fontSize: 14 }}>
           New here? <a href="/owner/signup">Create an account</a>
         </p>

@@ -1,97 +1,105 @@
 import type { Boutique, BoutiqueStatus } from "@/lib/supabase/types";
-import { boutiques, simulate, uid } from "./store";
+import { db, apiFetch } from "./supabaseClient";
+import { ApiError } from "./store";
 
-/** Mirrors GET/PATCH shapes of the Phase 1 boutiques-related routes. */
+/**
+ * Phase 3: real implementation. Reads go through the browser Supabase client
+ * (RLS-scoped to the signed-in user); the two writes that need the
+ * service-role key (registration, admin-add) go through Phase 1's API routes.
+ */
 
 export async function listBoutiques(search?: string): Promise<Boutique[]> {
-  return simulate(() => {
-    if (!search) return [...boutiques];
-    const q = search.trim().toLowerCase();
-    return boutiques.filter(
-      (b) => b.name.toLowerCase().includes(q) || (b.area ?? "").toLowerCase().includes(q) || b.owner_name.toLowerCase().includes(q),
-    );
-  });
+  let query = db().from("boutiques").select("*").order("created_at", { ascending: false });
+  if (search) {
+    const q = search.trim();
+    query = query.or(`name.ilike.%${q}%,area.ilike.%${q}%,owner_name.ilike.%${q}%`);
+  }
+  const { data, error } = await query;
+  if (error) throw new ApiError("query_failed", "Could not load boutiques");
+  return data as Boutique[];
 }
 
 export async function getBoutique(id: string): Promise<Boutique | null> {
-  return simulate(() => boutiques.find((b) => b.id === id) ?? null);
+  const { data, error } = await db().from("boutiques").select("*").eq("id", id).maybeSingle();
+  if (error) throw new ApiError("query_failed", "Could not load this boutique");
+  return data as Boutique | null;
 }
 
 export async function getBoutiqueByOwnerUserId(ownerUserId: string): Promise<Boutique | null> {
-  return simulate(() => boutiques.find((b) => b.owner_user_id === ownerUserId) ?? null);
+  const { data, error } = await db().from("boutiques").select("*").eq("owner_user_id", ownerUserId).maybeSingle();
+  if (error) throw new ApiError("query_failed", "Could not load this account's boutique");
+  return data as Boutique | null;
 }
 
 export interface RegisterBoutiqueInput {
-  ownerUserId: string;
+  ownerUserId: string; // unused in the real implementation (the server derives it from the session) — kept for call-site compatibility.
   name: string;
   area?: string;
   ownerName: string;
-  email: string;
+  email: string; // unused — the server uses the authenticated user's own email.
   phone?: string;
   gstNumber?: string;
   category: string;
+  /** Phase 3 addition: Phase 1's real POST /api/auth/register combines
+   * registration + terms acceptance into ONE request (see docs/phase3-report.md
+   * "Documented mismatch: registration vs. terms as two screens"). Required
+   * for the real call; the owner-terms screen supplies this. */
+  terms?: { tnc: boolean; privacy: boolean };
 }
 
-/** Owner self-registration (owner-register screen), post-signup. */
+/** Owner self-registration (owner-register + owner-terms screens, combined
+ * into one request to match the real POST /api/auth/register contract). */
 export async function registerBoutique(input: RegisterBoutiqueInput): Promise<Boutique> {
-  return simulate(() => {
-    const row: Boutique = {
-      id: uid("b"),
-      owner_user_id: input.ownerUserId,
+  if (!input.terms?.tnc || !input.terms?.privacy) {
+    throw new ApiError("validation_failed", "Both terms must be accepted before registering");
+  }
+  return apiFetch<Boutique>("/api/auth/register", {
+    method: "POST",
+    body: JSON.stringify({
       name: input.name,
-      area: input.area ?? null,
-      owner_name: input.ownerName,
-      email: input.email,
-      phone: input.phone ?? null,
-      gst_number: input.gstNumber ?? null,
+      area: input.area,
+      ownerName: input.ownerName,
+      phone: input.phone,
+      gstNumber: input.gstNumber,
       category: input.category,
-      status: "active",
-      terms_tnc_accepted: false,
-      terms_privacy_accepted: false,
-      terms_accepted_at: null,
-      order_seq: 0,
-      logo_file_id: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    boutiques.push(row);
-    return row;
+      terms: input.terms,
+    }),
   });
 }
 
+/** No-op against the real backend: terms are accepted as part of
+ * `registerBoutique` now (see above). Kept so any remaining call site doesn't
+ * need to change — it just re-fetches the (already-accepted) boutique. */
 export async function acceptTerms(boutiqueId: string): Promise<Boutique> {
-  return simulate(() => {
-    const b = boutiques.find((x) => x.id === boutiqueId);
-    if (!b) throw new Error("Boutique not found");
-    b.terms_tnc_accepted = true;
-    b.terms_privacy_accepted = true;
-    b.terms_accepted_at = new Date().toISOString();
-    b.updated_at = new Date().toISOString();
-    return b;
+  const boutique = await getBoutique(boutiqueId);
+  if (!boutique) throw new ApiError("not_found", "Boutique not found");
+  return boutique;
+}
+
+/** admin-add: Super Admin creates a tenant + its owner's auth user directly. */
+export async function adminCreateBoutique(input: RegisterBoutiqueInput & { ownerEmail?: string }): Promise<Boutique> {
+  return apiFetch<Boutique>("/api/admin/boutiques", {
+    method: "POST",
+    body: JSON.stringify({
+      name: input.name,
+      area: input.area,
+      ownerName: input.ownerName,
+      ownerEmail: input.ownerEmail ?? input.email,
+      phone: input.phone,
+      gstNumber: input.gstNumber,
+      category: input.category,
+    }),
   });
 }
 
-/** admin-add: Super Admin creates a tenant directly. */
-export async function adminCreateBoutique(input: RegisterBoutiqueInput): Promise<Boutique> {
-  return registerBoutique(input);
-}
-
-/** admin-access: hold / disable / activate. RLS + trigger enforcement of WHICH
- * admin sub-role may make WHICH transition happens for real only in Phase 1's
- * backend — this mock applies the same matrix so the UI can be built/tested
- * against the correct allow/deny behavior now. See docs/decisions.md #3. */
-export async function setBoutiqueStatus(boutiqueId: string, status: BoutiqueStatus, actingAdminRole: string): Promise<Boutique> {
-  return simulate(() => {
-    const b = boutiques.find((x) => x.id === boutiqueId);
-    if (!b) throw new Error("Boutique not found");
-    if (actingAdminRole === "viewer" || actingAdminRole === "billing_admin") {
-      throw new Error(`${actingAdminRole.replace("_", " ")} admins cannot change boutique status`);
-    }
-    if (actingAdminRole === "support_admin" && status === "disabled") {
-      throw new Error("Support admins cannot disable a boutique");
-    }
-    b.status = status;
-    b.updated_at = new Date().toISOString();
-    return b;
+/** admin-access: hold / disable / activate. `actingAdminRole` is no longer
+ * needed by this function (the real RLS + trigger enforce the sub-role matrix
+ * server-side, per docs/decisions.md #3) — kept as an unused parameter only
+ * for call-site compatibility with Phase 2's signature. */
+export async function setBoutiqueStatus(boutiqueId: string, status: BoutiqueStatus, _actingAdminRole?: string): Promise<Boutique> {
+  void _actingAdminRole;
+  return apiFetch<Boutique>(`/api/admin/boutiques/${boutiqueId}/status`, {
+    method: "POST",
+    body: JSON.stringify({ status }),
   });
 }

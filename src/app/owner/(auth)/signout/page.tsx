@@ -10,7 +10,7 @@ export default function OwnerSignoutPage() {
   const { signOut } = useSession();
 
   React.useEffect(() => {
-    signOut();
+    void signOut();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

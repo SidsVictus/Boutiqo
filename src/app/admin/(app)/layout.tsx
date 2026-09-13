@@ -34,9 +34,11 @@ export default function AdminAppLayout({ children }: { children: React.ReactNode
   const pathname = usePathname();
 
   React.useEffect(() => {
+    if (session === undefined) return; // initial session check still in flight
     if (!session || session.kind !== "admin") router.replace("/admin/login");
   }, [session, router]);
 
+  if (session === undefined) return <div className="bq-skeleton" style={{ height: "100dvh" }} />;
   if (!session || session.kind !== "admin") return null;
 
   const { admin } = session;

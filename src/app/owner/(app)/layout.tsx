@@ -39,11 +39,16 @@ export default function OwnerAppLayout({ children }: { children: React.ReactNode
   const pathname = usePathname();
 
   React.useEffect(() => {
+    // `undefined` = the initial session check is still in flight (e.g. right
+    // after a hard reload) — don't redirect until it resolves one way or the
+    // other, or a real, persisted session would bounce straight to login.
+    if (session === undefined) return;
     if (!session || session.kind !== "owner") {
       router.replace("/owner/login");
     }
   }, [session, router]);
 
+  if (session === undefined) return <div className="bq-skeleton" style={{ height: "100dvh" }} />;
   if (!session || session.kind !== "owner") return null;
 
   const { boutique } = session;

@@ -4,19 +4,24 @@ Phone-first order book for small boutiques/tailors in Hyderabad. Multi-tenant
 SaaS: a Super Admin console, self-service boutique owner accounts, and a
 no-login WhatsApp tracking page for the boutique's own customers.
 
-This repository implements **Phase 1** (the Supabase + Cloudflare R2 backend)
-and **Phase 2** (the full frontend UI, built against local mock data — not yet
-wired to the Phase 1 backend; that's Phase 3). See `docs/phase1-report.md` and
-`docs/phase2-report.md` for the full completion reports, and `docs/decisions.md`
-for every design decision made on the design bundle's behalf.
+This repository implements **Phase 1** (the Supabase + Cloudflare R2 backend),
+**Phase 2** (the full frontend UI), and **Phase 3** (wiring that UI to the
+real backend). See `docs/phase1-report.md`, `docs/phase2-report.md`, and
+`docs/phase3-report.md` for the full completion reports, and
+`docs/decisions.md` for every design decision made on the design bundle's
+behalf.
 
-**Phase 2 status:** all 25 screens exist as real, click-through routes with
-the ported design system, both responsive layouts, and every state (loading/
-empty/error/upload states) described in the Phase 2 brief — but every screen
-reads and writes an in-memory mock data layer (`src/lib/data/`), not the real
-Supabase/R2 backend. No screen makes a network call to `*.supabase.co`,
-Cloudflare R2, or Google OAuth. See "Mock data layer" below and
-`docs/phase2-report.md` for exactly what Phase 3 needs to replace.
+**Current status:** all 25 screens are wired to the real Supabase project —
+real Auth (signup/login/logout/session persistence), real RLS-scoped reads
+and writes, real file uploads to Cloudflare R2 (once enabled — see "Known
+limitations" below), and the real no-login tracking RPC. The in-memory mock
+data layer Phase 2 built has been retired; `src/lib/data/*.ts` now call the
+real Supabase client / Phase 1's API routes directly. **Live end-to-end
+verification (real HTTP against the real Supabase project, real R2 uploads)
+could not be executed in the sandbox this was built in** — see
+`docs/phase3-report.md` "Known limitations" for exactly what remains
+unverified and why, and what a normal development machine needs to do to
+verify it for real before shipping.
 
 ## Stack
 
@@ -68,6 +73,22 @@ cp .env.example .env.local   # fill in real values, see below
    server-only — never prefix it with `NEXT_PUBLIC_`.
 4. Optional but recommended: in Auth settings, enable "leaked password
    protection" (flagged by Supabase's own advisor; off by default).
+5. **Email confirmation**: if your project's Auth settings require confirming
+   a new address before it has a usable session, `supabase.auth.signUp()`
+   won't return a session immediately — and `POST /api/auth/register`
+   requires an authenticated session to run. Either disable "Confirm email"
+   for local development, or add an email-confirmation step to the
+   owner-signup flow before registration can proceed (not built — this
+   session couldn't reach the Auth API to determine which the project
+   actually needs; see `docs/phase3-report.md`).
+6. **Google OAuth provider**: to make the "Continue with Google" button on
+   `/owner/signup` actually complete a sign-in (the button already calls
+   `supabase.auth.signInWithOAuth({ provider: "google", ... })` correctly),
+   configure a Google provider under Authentication → Providers in the
+   Supabase dashboard, with a real OAuth client ID/secret from a Google Cloud
+   project, and add this app's origin(s) to the provider's authorized
+   redirect URIs. Not configured as of this repository's last update — the
+   button will show Supabase's own "provider not enabled" error until it is.
 
 ### Cloudflare R2
 
@@ -106,35 +127,48 @@ this seeds and the password.
 ## Running
 
 ```bash
-npm run dev      # http://localhost:3000 — minimal Phase 1 scaffolding only
+npm run dev      # http://localhost:3000 — the real app, real Supabase project required
 npm run build    # production build (also type-checks)
 npm run lint
 ```
 
+Requires `.env.local` filled in per "Local setup" above — every screen now
+reads/writes the real Supabase project (and R2, once enabled). There is no
+mock-data mode anymore.
+
 ## Testing
 
 ```bash
-npm test              # unit tests + R2 flow against a local S3-compatible mock
-npm run test:rls       # live RLS/auth/business-rule tests over real HTTP
-                        # (needs network access to Supabase + npm run seed already run)
-npm run test:e2e       # Playwright config (present, no specs written yet — Phase 2+)
+npm test                          # unit tests (calc/business-logic) + R2 flow against a local S3-compatible mock
+npm run test:rls                  # live RLS/auth/business-rule tests over real HTTP (Phase 1)
+RUN_LIVE_E2E=1 npm run test:e2e   # full browser E2E against the real integrated app
 ```
 
 `npm test` runs entirely offline: R2 is exercised against `s3rver` (a local
-S3-compatible mock — real R2 speaks the same protocol), and validation/unit
-tests need no network. `npm run test:rls` needs real network access to your
-Supabase project and the seeded dev accounts.
+S3-compatible mock — real R2 speaks the same protocol), and the remaining
+unit tests (pure calc/formatting functions) need no network. `npm run
+test:rls` and `RUN_LIVE_E2E=1 npm run test:e2e` both need real network access
+to your Supabase project, seeded dev accounts (`npm run seed`), and — for
+`tests/e2e/file-upload.spec.ts` specifically — a real, enabled R2 bucket.
+Set `TEST_OWNER_EMAIL`/`TEST_OWNER_PASSWORD`, `TEST_ADMIN_EMAIL`/
+`TEST_ADMIN_PASSWORD`, and (for the tracking-page spec) `TEST_TRACKING_TOKEN`
+per `.env.example`.
 
-See `docs/phase1-report.md` for what was actually run and observed in the
-environment this was built in (which has restricted outbound network access),
+See `docs/phase1-report.md` and `docs/phase3-report.md` for what was actually
+run and observed in the environment this was built in (which has restricted
+outbound network access to `*.supabase.co` and to R2's data-plane endpoint),
 versus what a normal development machine can additionally run.
 
 ## Architecture summary
 
-- **Auth:** Supabase Auth. Boutique owners: email/password (+ Google OAuth,
-  not yet wired up client-side since there's no login UI in Phase 1) via
-  `/api/auth/login` and `/api/auth/register`. Super Admins: seeded only, login
-  through the same Supabase Auth, gated by the `admins` table. Customers never
+- **Auth:** Supabase Auth, wired for real in `src/lib/session/SessionContext.tsx`.
+  Boutique owners: `supabase.auth.signUp()` for signup, `POST /api/auth/login`
+  for login (this route also signs a disabled boutique's owner back out
+  immediately), Google OAuth via `supabase.auth.signInWithOAuth()` (provider
+  configuration still pending — see "Local setup" above). Super Admins: seeded
+  only, `supabase.auth.signInWithPassword()` directly, gated by the `admins`
+  table via the `current_admin_self()` RPC (see
+  `supabase/migrations/0009_admin_self_lookup.sql`). Customers never
   authenticate at all.
 - **Tenant isolation:** Row Level Security on every tenant-scoped table
   (`boutiques`, `customers`, `orders`, `files`), keyed off `boutique_id`
@@ -156,20 +190,7 @@ versus what a normal development machine can additionally run.
   presigned GET URL. A wrong token gets a generic 404, indistinguishable from
   any other miss.
 
-## Phase 2 — frontend (mock-data mode)
-
-### Running it
-
-```bash
-npm run dev      # http://localhost:3000 — the full app, reading/writing in-memory mock data
-```
-
-Nothing to configure — the mock data layer needs no environment variables and
-makes no network calls. Open `/` and pick a role, or go straight to
-`/owner/login` / `/admin/login` and use the "Fill demo credentials" button
-(any password is accepted for fixture accounts — see
-`src/lib/session/SessionContext.tsx`). State resets on every full page reload
-since it's all in-memory (`src/lib/data/store.ts`).
+## Frontend architecture (Phase 2 UI, Phase 3 integration)
 
 ### Routing structure
 
@@ -183,26 +204,20 @@ nav chrome — signup/login/terms/signout) and an `(app)` subgroup (wrapped in
   `admin/(app)/{dashboard,boutiques,boutiques/new,boutiques/[id],boutiques/[id]/access,roles}`
 - `track/[token]` — standalone, no chrome, no auth group (the customer never logs in)
 
-### Mock data layer — the seam Phase 3 replaces
+### Data layer
 
-`src/lib/data/` is the **only** thing any screen reads or writes through —
-no component reaches into fixture arrays directly. One module per resource
-(`boutiques.ts`, `customers.ts`, `orders.ts`, `admins.ts`, `tracking.ts`,
-`uploads.ts`), each exporting functions shaped like the real Phase 1 API
-(`createOrder(input): Promise<Order>`, `getOrderTracking(token): Promise<TrackingView | null>`,
-etc.), backed by `store.ts`'s in-memory arrays (typed with Phase 1's actual
-`Boutique`/`Customer`/`Order`/`AdminUser`/`FileRow` types from
-`src/lib/supabase/types.ts`, so field names never drift from the real schema).
-Every function routes through `simulate()`, which adds realistic latency and
-can be forced to fail (`setForceFailure(true)`) — this is what actually
-exercises the loading/error states in the UI during development and testing,
-not just styled-in-isolation markup. Business rules Phase 1's RLS enforces
-(on_hold/disabled blocking new orders, admin sub-role boutique-status limits,
-per-boutique sequential order codes) are re-implemented here so the UI can be
-built and tested against the same behavior before Phase 3 wires up the real
-backend. **Phase 3's job is to replace the internals of these modules with
-real `fetch`/Supabase-client calls — the function signatures and return
-shapes are the contract and should not need to change.**
+`src/lib/data/` is still the **only** thing any screen reads or writes
+through. One module per resource (`boutiques.ts`, `customers.ts`,
+`orders.ts`, `admins.ts`, `tracking.ts`, `uploads.ts`) — as of Phase 3, each
+calls the real Supabase client (`src/lib/data/supabaseClient.ts`'s `db()`,
+RLS-scoped to the signed-in user) directly for reads, and either that same
+client or a `fetch` to one of Phase 1's API routes (`apiFetch()`) for writes
+that need privileged/server-side logic. Phase 2's in-memory mock arrays
+(`store.ts`'s fixture data) have been removed; `store.ts` now holds only
+generic helpers (`uid`, `ApiError`, the R2-mock forced-failure switch used by
+`tests/r2/r2.test.ts`). See `docs/phase3-report.md` "Mock data layer
+retirement" for the full before/after and the handful of documented
+signature changes (e.g. `customerOrders` is now async).
 
 ### Layouts and the responsive breakpoint
 
@@ -231,33 +246,37 @@ detail to lose track of.
 
 ### Brand logo
 
-The sidebar/topbar/auth-screen wordmark uses a user-supplied raster lockup
-(`public/brand/logo.png`, via `src/components/app/Logo.tsx`) per explicit
-direction partway through this phase. Note this **overrides** the design
-handoff's own instruction not to use its bundled raster lockup
-(`_ds/.../assets/logo-lockup.jpeg`) and instead set the wordmark live in
-Svetze + a signal-red dot — that guidance still applies to the *handoff's*
-lockup specifically; the image actually used here is a different, user-
-provided asset. See `docs/phase2-report.md` for this judgment call.
+Reverted to the design handoff's specified treatment: the wordmark
+("boutiqo") is set live in Svetze by each call site's CSS, with
+`src/components/app/Logo.tsx` rendering only the small signal-red accent dot
+— no raster lockup image anywhere in the app. A Phase 2 revision briefly
+rendered a user-supplied raster image instead (added mid-session at an
+explicit request); Phase 3 reverted it since no such override is recorded in
+this project's actual source-of-truth documents. See
+`docs/phase3-report.md` §0 for the full account.
 
-### Testing
+## Known limitations (read before Phase 4)
 
-```bash
-npm test              # vitest — calc/business-logic + mock data layer + R2 (unit)
-npm run test:e2e       # playwright — full browser flows against `next build && next start`
-```
+Both Phase 1 and Phase 3 were built in the same network-restricted sandbox:
+outbound HTTPS to `*.supabase.co` and to R2's data-plane endpoint is blocked
+by organizational egress policy, and R2 itself was never enabled on the
+linked Cloudflare account. This means:
 
-Both suites run entirely offline against the mock data layer / a local S3
-mock — no live Supabase or R2 needed for Phase 2's own tests. See
-`docs/phase2-report.md` for exactly what was run and the results.
+- Real HTTP-level Auth flows (signup, login, disabled/suspended rejection),
+  `POST /api/auth/register`, and `POST /api/admin/boutiques` are implemented
+  and were reasoned through carefully, but **could not be exercised over live
+  HTTP in this session** — same as Phase 1 before it.
+- Real file upload/download against live R2 **could not be attempted at
+  all** — R2 is still not enabled on the linked Cloudflare account (confirmed
+  again in Phase 3 via the same `r2_buckets_list` check Phase 1 used).
+- Whatever database-level verification *was* possible (RLS/trigger behavior,
+  a new migration's correctness) was done directly against the live Supabase
+  project via SQL-role simulation — the same legitimate technique Phase 1
+  used, documented with real output in `docs/phase1-report.md` and
+  `docs/phase3-report.md`.
 
-## Known limitations from Phase 1 (read before Phase 3)
-
-See `docs/phase1-report.md` → "Known limitations" for the full list — in
-short: this was built in a network-restricted sandbox, so live HTTP-level
-Auth/R2 testing wasn't possible there. RLS and business rules were instead
-verified directly against the live database (documented, with output, in that
-report) and R2's upload/download logic was verified against a local
-S3-compatible mock. Both are standard, legitimate testing techniques, but a
-normal development machine should still run `npm run test:rls` once seeded to
-reproduce the same checks over real HTTP before shipping.
+See `docs/phase3-report.md` → "Known limitations" for the complete,
+itemized list of what is and isn't verified, and exactly what a normal
+development machine (with real network access) needs to run before this
+ships — `npm run test:rls` and `RUN_LIVE_E2E=1 npm run test:e2e` reproduce
+the same checks over real HTTP once that access exists.

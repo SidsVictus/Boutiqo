@@ -1,7 +1,8 @@
 import { test, expect } from "@playwright/test";
-import { loginOwner } from "./helpers";
+import { loginOwner, skipUnlessLive } from "./helpers";
 
 test("layout genuinely switches at the 1024px breakpoint (not just one fixed layout)", async ({ page }) => {
+  skipUnlessLive(test);
   await loginOwner(page);
 
   // Below the breakpoint: bottom tab bar visible, sidebar absent.

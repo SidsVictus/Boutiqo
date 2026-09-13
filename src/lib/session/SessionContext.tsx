@@ -1,97 +1,182 @@
 "use client";
 
 import * as React from "react";
-import { boutiques } from "@/lib/data/store";
-import { admins } from "@/lib/data/store";
+import { createClient } from "@/lib/supabase/client";
 import type { AdminUser, Boutique } from "@/lib/supabase/types";
 
 /**
- * Mock session — stands in for a real Supabase Auth session in Phase 2. Not
- * persisted across a hard reload (sessionStorage would be a reasonable
- * Phase 3-adjacent touch, but a real session comes from Supabase then, so it
- * isn't worth building here). See docs/phase2-report.md "Mock data layer".
+ * Phase 3: real Supabase Auth session, replacing Phase 2's in-memory mock.
+ * `session` is `undefined` while the initial session check is in flight (so
+ * route guards can show a loading state instead of flashing a redirect),
+ * `null` when signed out, and one of the two real, RLS-backed shapes below
+ * once resolved.
  */
-export type Session =
-  | { kind: "owner"; boutique: Boutique }
-  | { kind: "admin"; admin: AdminUser }
-  | null;
+export type Session = { kind: "owner"; boutique: Boutique } | { kind: "admin"; admin: AdminUser } | null;
+
+export interface DraftRegistrationFields {
+  name: string;
+  area?: string;
+  ownerName: string;
+  phone?: string;
+  gstNumber?: string;
+  category: string;
+}
 
 export interface DraftSignup {
   email: string;
   userId: string;
-  termsAccepted: boolean;
+  fields?: DraftRegistrationFields;
+}
+
+interface LoginResult {
+  ok: boolean;
+  code?: string;
+  message?: string;
 }
 
 interface SessionContextValue {
-  session: Session;
-  loginOwner: (email: string, password: string) => Promise<{ ok: true } | { ok: false; code: string; message: string }>;
-  loginAdmin: (email: string, password: string) => Promise<{ ok: true } | { ok: false; code: string; message: string }>;
-  signOut: () => void;
-  /** Dev convenience used by fixtures/tests to switch tenants without a form. */
-  setSessionDirect: (s: Session) => void;
-  /** Carries an in-progress owner signup (post auth-signup, pre-registration/
-   * terms) across the signup → register → terms screens. */
+  session: Session | undefined;
+  loginOwner: (email: string, password: string) => Promise<LoginResult>;
+  loginAdmin: (email: string, password: string) => Promise<LoginResult>;
+  signUpOwner: (email: string, password: string) => Promise<LoginResult>;
+  signInWithGoogle: () => Promise<void>;
+  signOut: () => Promise<void>;
+  refreshSession: () => Promise<void>;
   draftSignup: DraftSignup | null;
-  startDraftSignup: (email: string) => void;
-  setDraftTermsAccepted: (accepted: boolean) => void;
+  setDraftFields: (fields: DraftRegistrationFields) => void;
   clearDraftSignup: () => void;
 }
 
 const SessionContext = React.createContext<SessionContextValue | null>(null);
 
-// Any password is accepted for these fixture emails — this is presentation
-// fixture data, not a real credential (see §7 of the Phase 2 brief).
-const FIXTURE_PASSWORD = "boutiqo-mock";
+async function resolveSession(supabase: ReturnType<typeof createClient>): Promise<Session> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  // An admin's own row is visible via current_admin_self() even when
+  // suspended (admins_select/is_admin() hide it once inactive — see
+  // supabase/migrations/0009_admin_self_lookup.sql) — check admin first since
+  // it's the narrower group.
+  const { data: adminRows } = await supabase.rpc("current_admin_self");
+  const admin = Array.isArray(adminRows) ? (adminRows[0] as AdminUser | undefined) : undefined;
+  if (admin) {
+    if (!admin.active) return null; // resolved elsewhere as "suspended" at login time; a stale session just signs out.
+    return { kind: "admin", admin };
+  }
+
+  const { data: boutique } = await supabase.from("boutiques").select("*").eq("owner_user_id", user.id).maybeSingle();
+  if (boutique) {
+    if (boutique.status === "disabled") return null;
+    return { kind: "owner", boutique: boutique as Boutique };
+  }
+
+  return null;
+}
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
-  const [session, setSession] = React.useState<Session>(null);
+  const supabase = React.useMemo(() => createClient(), []);
+  const [session, setSession] = React.useState<Session | undefined>(undefined);
   const [draftSignup, setDraftSignup] = React.useState<DraftSignup | null>(null);
 
-  const startDraftSignup = React.useCallback((email: string) => {
-    setDraftSignup({ email, userId: `u_draft_${Math.random().toString(36).slice(2, 8)}`, termsAccepted: false });
-  }, []);
-  const setDraftTermsAccepted = React.useCallback((accepted: boolean) => {
-    setDraftSignup((d) => (d ? { ...d, termsAccepted: accepted } : d));
-  }, []);
+  const refreshSession = React.useCallback(async () => {
+    setSession(await resolveSession(supabase));
+  }, [supabase]);
+
+  React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the initial session check on mount is genuinely async, not a synchronous setState.
+    void refreshSession();
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(() => {
+      void refreshSession();
+    });
+    return () => subscription.unsubscribe();
+  }, [supabase, refreshSession]);
+
+  const loginOwner = React.useCallback(
+    async (email: string, password: string): Promise<LoginResult> => {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        return { ok: false, code: body?.error?.code ?? "invalid_credentials", message: body?.error?.message ?? "Incorrect email or password" };
+      }
+      // The route set real session cookies; the browser client picks them up
+      // via onAuthStateChange, but we also refresh eagerly so the caller can
+      // navigate immediately without waiting on that event.
+      await refreshSession();
+      return { ok: true };
+    },
+    [refreshSession],
+  );
+
+  const loginAdmin = React.useCallback(
+    async (email: string, password: string): Promise<LoginResult> => {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) return { ok: false, code: "invalid_credentials", message: "Incorrect email or password" };
+
+      const { data: adminRows } = await supabase.rpc("current_admin_self");
+      const admin = Array.isArray(adminRows) ? (adminRows[0] as AdminUser | undefined) : undefined;
+
+      if (!admin) {
+        await supabase.auth.signOut();
+        return { ok: false, code: "invalid_credentials", message: "Incorrect email or password" };
+      }
+      if (!admin.active) {
+        await supabase.auth.signOut();
+        return { ok: false, code: "account_suspended", message: "This admin account has been suspended." };
+      }
+      setSession({ kind: "admin", admin });
+      return { ok: true };
+    },
+    [supabase],
+  );
+
+  const signUpOwner = React.useCallback(
+    async (email: string, password: string): Promise<LoginResult> => {
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error) return { ok: false, code: "signup_failed", message: error.message };
+      if (!data.user) return { ok: false, code: "signup_failed", message: "Could not create the account" };
+      // If email confirmation is required by the project's Auth settings,
+      // data.session will be null here even though the user row exists —
+      // /api/auth/register requires an authenticated session, so registration
+      // can't proceed until the address is confirmed. Not exercised over live
+      // network in this session; see docs/phase3-report.md.
+      setDraftSignup({ email, userId: data.user.id });
+      return { ok: true };
+    },
+    [supabase],
+  );
+
+  const signInWithGoogle = React.useCallback(async () => {
+    // Phase 3 scope: wire the real redirect call correctly. Whether it
+    // actually completes depends on a Google OAuth provider being configured
+    // in the Supabase Auth dashboard — a one-time human step this session
+    // cannot perform (see docs/phase3-report.md §3.3).
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${window.location.origin}/owner/register` },
+    });
+  }, [supabase]);
+
+  const signOut = React.useCallback(async () => {
+    await supabase.auth.signOut();
+    setSession(null);
+  }, [supabase]);
+
   const clearDraftSignup = React.useCallback(() => setDraftSignup(null), []);
-
-  const loginOwner = React.useCallback(async (email: string, password: string) => {
-    await new Promise((r) => setTimeout(r, 300));
-    if (password !== FIXTURE_PASSWORD) {
-      return { ok: false as const, code: "invalid_credentials", message: "Incorrect email or password" };
-    }
-    const boutique = boutiques.find((b) => b.email.toLowerCase() === email.toLowerCase());
-    if (!boutique) {
-      return { ok: false as const, code: "invalid_credentials", message: "Incorrect email or password" };
-    }
-    if (boutique.status === "disabled") {
-      return { ok: false as const, code: "account_disabled", message: "This boutique account has been disabled. Contact Boutiqo support." };
-    }
-    setSession({ kind: "owner", boutique });
-    return { ok: true as const };
+  const setDraftFields = React.useCallback((fields: DraftRegistrationFields) => {
+    setDraftSignup((d) => (d ? { ...d, fields } : d));
   }, []);
-
-  const loginAdmin = React.useCallback(async (email: string, password: string) => {
-    await new Promise((r) => setTimeout(r, 300));
-    if (password !== FIXTURE_PASSWORD) {
-      return { ok: false as const, code: "invalid_credentials", message: "Incorrect email or password" };
-    }
-    const admin = admins.find((a) => a.email.toLowerCase() === email.toLowerCase());
-    if (!admin) {
-      return { ok: false as const, code: "invalid_credentials", message: "Incorrect email or password" };
-    }
-    if (!admin.active) {
-      return { ok: false as const, code: "account_suspended", message: "This admin account has been suspended." };
-    }
-    setSession({ kind: "admin", admin });
-    return { ok: true as const };
-  }, []);
-
-  const signOut = React.useCallback(() => setSession(null), []);
 
   return (
     <SessionContext.Provider
-      value={{ session, loginOwner, loginAdmin, signOut, setSessionDirect: setSession, draftSignup, startDraftSignup, setDraftTermsAccepted, clearDraftSignup }}
+      value={{ session, loginOwner, loginAdmin, signUpOwner, signInWithGoogle, signOut, refreshSession, draftSignup, setDraftFields, clearDraftSignup }}
     >
       {children}
     </SessionContext.Provider>
@@ -103,5 +188,3 @@ export function useSession() {
   if (!ctx) throw new Error("useSession must be used within SessionProvider");
   return ctx;
 }
-
-export const FIXTURE_LOGIN_PASSWORD = FIXTURE_PASSWORD;

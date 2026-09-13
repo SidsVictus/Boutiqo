@@ -5,7 +5,7 @@ import { useSession } from "@/lib/session/SessionContext";
 import { listOrders } from "@/lib/data/orders";
 import { getCustomer } from "@/lib/data/customers";
 import { CalendarGrid, LoadLegend } from "@/components/app/CalendarGrid";
-import { calendarLoadByDate } from "@/lib/data/store";
+import { computeLoadByDate } from "@/lib/calc/calendarLoad";
 import { OrderRow } from "@/components/app/OrderRow";
 import type { Order, Customer } from "@/lib/supabase/types";
 
@@ -39,7 +39,7 @@ export default function OwnerCalendarPage() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <LoadLegend />
-      <CalendarGrid year={today.getFullYear()} month={today.getMonth()} loadByDate={calendarLoadByDate} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
+      <CalendarGrid year={today.getFullYear()} month={today.getMonth()} loadByDate={computeLoadByDate(orders)} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
       {selectedDate ? (
         <div>
           <h2 style={{ marginBottom: 10 }}>Due {selectedDate}</h2>

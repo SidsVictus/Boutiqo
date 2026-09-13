@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ds/Button";
 import { Input } from "@/components/ds/Input";
 import { Logo } from "@/components/app/Logo";
-import { useSession, FIXTURE_LOGIN_PASSWORD } from "@/lib/session/SessionContext";
+import { useSession } from "@/lib/session/SessionContext";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -25,15 +25,10 @@ export default function AdminLoginPage() {
     setLoading(false);
     if (!result.ok) {
       if (result.code === "account_suspended") setSuspendedNotice(true);
-      else setError(result.message);
+      else setError(result.message ?? "Incorrect email or password");
       return;
     }
     router.push("/admin/dashboard");
-  }
-
-  function fillDemo() {
-    setEmail("admin.owner@example-fixture.test");
-    setPassword(FIXTURE_LOGIN_PASSWORD);
   }
 
   return (
@@ -59,9 +54,6 @@ export default function AdminLoginPage() {
             {loading ? "Logging in…" : "Log in"}
           </Button>
         </form>
-        <button type="button" onClick={fillDemo} style={{ marginTop: 14, background: "none", border: 0, color: "var(--text-link)", fontSize: 13, cursor: "pointer", padding: 0 }}>
-          Fill demo owner-admin credentials
-        </button>
       </div>
     </main>
   );

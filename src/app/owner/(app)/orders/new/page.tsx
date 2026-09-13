@@ -5,20 +5,20 @@ import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/session/SessionContext";
 import { listCustomers } from "@/lib/data/customers";
 import { createOrder, listOrders } from "@/lib/data/orders";
-import { MockApiError } from "@/lib/data/store";
+import { ApiError } from "@/lib/data/store";
 import { StepperPills, type StepDef } from "@/components/app/StepperPills";
 import { MeasurementGrid, type MeasurementValues } from "@/components/app/MeasurementGrid";
 import { MeasurementGuide } from "@/components/app/MeasurementGuide";
 import { VoiceTypeToggle, VoiceListeningDisc } from "@/components/app/VoiceTypeToggle";
-import { ClothPhotoUpload } from "@/components/app/ClothPhotoUpload";
+import { ClothPhotoUpload, uploadDeferredClothPhoto } from "@/components/app/ClothPhotoUpload";
 import { CalendarGrid } from "@/components/app/CalendarGrid";
 import { Input } from "@/components/ds/Input";
 import { Select } from "@/components/ds/Select";
 import { Button } from "@/components/ds/Button";
 import { commonDressTypes } from "@/lib/validation/order";
-import { calendarLoadByDate } from "@/lib/data/store";
+import { computeLoadByDate } from "@/lib/calc/calendarLoad";
 import { formatMoney, formatShortDate } from "@/lib/calc/format";
-import type { Customer } from "@/lib/supabase/types";
+import type { Customer, Order } from "@/lib/supabase/types";
 import { MEASUREMENT_FIELDS, type MeasurementField } from "@/lib/supabase/types";
 
 const STEPS: StepDef[] = [
@@ -34,6 +34,7 @@ export default function NewOrderPage() {
   const boutique = session?.kind === "owner" ? session.boutique : null;
   const router = useRouter();
   const [customers, setCustomers] = React.useState<Customer[]>([]);
+  const [existingOrders, setExistingOrders] = React.useState<Order[]>([]);
   const [step, setStep] = React.useState(0);
   const [inputMode, setInputMode] = React.useState<"voice" | "text">("text");
   const [error, setError] = React.useState<string | null>(null);
@@ -41,7 +42,11 @@ export default function NewOrderPage() {
 
   const [customerId, setCustomerId] = React.useState("");
   const [measurements, setMeasurements] = React.useState<MeasurementValues>({});
-  const [clothPhotoFileId, setClothPhotoFileId] = React.useState<string | null>(null);
+  // Deferred: the real presign route requires an existing order id for a
+  // cloth_photo upload, which doesn't exist until step E succeeds — so this
+  // step only holds the selected File, and the actual upload happens after
+  // createOrder returns. See docs/phase3-report.md "Cloth-photo-in-wizard mismatch".
+  const [clothPhotoFile, setClothPhotoFile] = React.useState<File | null>(null);
   const [garmentType, setGarmentType] = React.useState("");
   const [garmentTypeOther, setGarmentTypeOther] = React.useState("");
   const [tailorName, setTailorName] = React.useState("");
@@ -54,8 +59,10 @@ export default function NewOrderPage() {
   React.useEffect(() => {
     if (!boutique) return;
     listCustomers(boutique.id).then(setCustomers);
-    // "New order" prefills step A with the last order's figures (handoff §6).
+    // "New order" prefills step A with the last order's figures (handoff §6);
+    // the same fetched list also drives the delivery-date calendar's load.
     listOrders(boutique.id).then((rows) => {
+      setExistingOrders(rows);
       if (rows.length === 0) return;
       const last = [...rows].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
       const prefill: MeasurementValues = {};
@@ -114,11 +121,19 @@ export default function NewOrderPage() {
         clothDescription,
         styleNotes,
         measurements: measurementPayload,
-        clothPhotoFileId,
       });
+      if (clothPhotoFile) {
+        // A failed photo upload shouldn't block the (already-saved) order —
+        // surface it, but still continue to the confirm screen.
+        try {
+          await uploadDeferredClothPhoto(activeBoutique.id, order.id, clothPhotoFile);
+        } catch {
+          setError("Order saved, but the cloth photo failed to upload. Add it from the order record.");
+        }
+      }
       router.push(`/owner/orders/${order.id}/confirm`);
     } catch (err) {
-      setError(err instanceof MockApiError ? err.message : "Could not save the order. Try again.");
+      setError(err instanceof ApiError ? err.message : "Could not save the order. Try again.");
     } finally {
       setSaving(false);
     }
@@ -149,9 +164,7 @@ export default function NewOrderPage() {
         </div>
       )}
 
-      {step === 1 && (
-        <ClothPhotoUpload boutiqueId={boutique.id} orderId="draft" onAttached={setClothPhotoFileId} />
-      )}
+      {step === 1 && <ClothPhotoUpload boutiqueId={boutique.id} orderId={null} onFileSelected={setClothPhotoFile} />}
 
       {step === 2 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 480 }}>
@@ -165,7 +178,13 @@ export default function NewOrderPage() {
       )}
 
       {step === 3 && (
-        <DeliveryDateStep dueDate={dueDate} onSelect={setDueDate} customerName={customers.find((c) => c.id === customerId)?.name} garmentType={garmentType} />
+        <DeliveryDateStep
+          dueDate={dueDate}
+          onSelect={setDueDate}
+          customerName={customers.find((c) => c.id === customerId)?.name}
+          garmentType={garmentType}
+          loadByDate={computeLoadByDate(existingOrders)}
+        />
       )}
 
       {step === 4 && (
@@ -195,17 +214,19 @@ function DeliveryDateStep({
   onSelect,
   customerName,
   garmentType,
+  loadByDate,
 }: {
   dueDate: string | null;
   onSelect: (d: string) => void;
   customerName?: string;
   garmentType: string;
+  loadByDate: Record<string, number>;
 }) {
   const today = new Date();
-  const otherOrdersOnDay = dueDate ? (calendarLoadByDate[dueDate] ?? 0) : 0;
+  const otherOrdersOnDay = dueDate ? (loadByDate[dueDate] ?? 0) : 0;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <CalendarGrid year={today.getFullYear()} month={today.getMonth()} loadByDate={calendarLoadByDate} selectedDate={dueDate} disablePast onSelectDate={onSelect} />
+      <CalendarGrid year={today.getFullYear()} month={today.getMonth()} loadByDate={loadByDate} selectedDate={dueDate} disablePast onSelectDate={onSelect} />
       {dueDate ? (
         <div className="bq-card" style={{ background: "var(--surface-inverse)", color: "var(--text-inverse)" }}>
           <div className="bq-num" style={{ fontSize: 18, marginBottom: 4 }}>

@@ -18,7 +18,7 @@ export default function CustomerDetailPage() {
     getCustomer(id).then((c) => {
       if (cancelled) return;
       setCustomer(c);
-      if (c) setOrders(customerOrders(c.id));
+      if (c) customerOrders(c.id).then((rows) => !cancelled && setOrders(rows));
     });
     return () => {
       cancelled = true;

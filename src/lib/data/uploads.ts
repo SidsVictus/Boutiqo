@@ -1,81 +1,73 @@
-import { files, simulate, uid } from "./store";
-import { MockApiError } from "./store";
+import { apiFetch } from "./supabaseClient";
+import { ApiError } from "./store";
 import type { FileKind } from "@/lib/supabase/types";
 
-/** Mirrors src/lib/r2.ts's constants (Phase 1, server-only — duplicated here
- * rather than imported, since that module is `import "server-only"` and would
- * break if pulled into client-side mock code). Keep these two lists in sync;
- * Phase 3 should import the real ones directly once this seam is replaced. */
+/** Mirrors src/lib/r2.ts's constants (server-only, so duplicated here rather
+ * than imported into client code). Keep in sync with that file. */
 export const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic"] as const;
 export const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 
 export interface PresignResult {
   fileId: string;
-  uploadUrl: string; // mock — never a real R2 URL
+  uploadUrl: string; // a real, short-lived R2 presigned PUT URL.
 }
 
-/** Mirrors POST /api/uploads/presign's validation (client-side check happens
- * before this is even called; this repeats it server-side-equivalent, as the
- * real route does). */
+/** POST /api/uploads/presign. */
 export async function presignUpload(kind: FileKind, mimeType: string, sizeBytes: number, boutiqueId: string, orderId?: string): Promise<PresignResult> {
-  return simulate(() => {
-    if (!ALLOWED_MIME_TYPES.includes(mimeType as (typeof ALLOWED_MIME_TYPES)[number])) {
-      throw new MockApiError("validation_failed", "Only JPEG, PNG, WEBP or HEIC images are allowed");
-    }
-    if (sizeBytes > MAX_FILE_SIZE_BYTES) {
-      throw new MockApiError("validation_failed", "File is larger than 10MB");
-    }
-    const fileId = uid("f");
-    files.push({
-      id: fileId,
-      boutique_id: boutiqueId,
-      kind,
-      order_id: orderId ?? null,
-      object_key: `mock/boutiques/${boutiqueId}/${kind}/${fileId}`,
-      mime_type: mimeType,
-      size_bytes: sizeBytes,
-      upload_status: "pending",
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    });
-    return { fileId, uploadUrl: `mock://upload/${fileId}` };
-  }, { latencyMs: 150 });
+  void boutiqueId; // the real route derives the boutique from the session.
+  if (!ALLOWED_MIME_TYPES.includes(mimeType as (typeof ALLOWED_MIME_TYPES)[number])) {
+    throw new ApiError("validation_failed", "Only JPEG, PNG, WEBP or HEIC images are allowed");
+  }
+  if (sizeBytes > MAX_FILE_SIZE_BYTES) {
+    throw new ApiError("validation_failed", "File is larger than 10MB");
+  }
+  const body = kind === "cloth_photo" ? { kind, orderId, mimeType, sizeBytes } : { kind, mimeType, sizeBytes };
+  const result = await apiFetch<{ fileId: string; objectKey: string; uploadUrl: string; expiresInSeconds: number }>("/api/uploads/presign", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  return { fileId: result.fileId, uploadUrl: result.uploadUrl };
 }
 
-/** Simulates the browser's direct PUT to R2 with measurable progress, via a
- * simple determinate progress callback (not a real byte-level upload — see
- * docs/phase2-report.md §6 for why a determinate simulated bar was chosen
- * over an indeterminate spinner). */
-export function simulateUploadProgress(onProgress: (pct: number) => void, shouldFail = false): Promise<void> {
+/**
+ * Real upload against the presigned PUT URL, using XHR (not `fetch`)
+ * specifically so `upload.onprogress` gives genuine byte-level progress —
+ * see docs/phase3-report.md "Upload progress: XHR vs. fetch" for why this
+ * was chosen over Phase 2's simulated determinate bar.
+ */
+export function uploadFileWithProgress(uploadUrl: string, file: File, onProgress: (pct: number) => void): Promise<void> {
   return new Promise((resolve, reject) => {
-    let pct = 0;
-    const tick = () => {
-      pct = Math.min(100, pct + 10 + Math.random() * 15);
-      onProgress(Math.round(pct));
-      if (pct >= 100) {
-        if (shouldFail) reject(new MockApiError("upload_failed", "The upload failed. Check your connection and try again."));
-        else resolve();
-        return;
-      }
-      setTimeout(tick, 120);
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", uploadUrl, true);
+    xhr.setRequestHeader("Content-Type", file.type);
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
     };
-    setTimeout(tick, 120);
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress(100);
+        resolve();
+      } else {
+        reject(new ApiError("upload_failed", `The upload failed (R2 responded ${xhr.status}). Check your connection and try again.`));
+      }
+    };
+    xhr.onerror = () => reject(new ApiError("upload_failed", "The upload failed. Check your connection and try again."));
+    xhr.onabort = () => reject(new ApiError("upload_aborted", "The upload was cancelled."));
+    xhr.send(file);
   });
 }
 
+/** POST /api/uploads/confirm. */
 export async function confirmUpload(fileId: string): Promise<void> {
-  return simulate(() => {
-    const file = files.find((f) => f.id === fileId);
-    if (!file) throw new MockApiError("not_found", "Upload record not found");
-    file.upload_status = "uploaded";
-    file.updated_at = new Date().toISOString();
-  }, { latencyMs: 150 });
+  await apiFetch("/api/uploads/confirm", { method: "POST", body: JSON.stringify({ fileId }) });
 }
 
+/** GET /api/files/:id/download-url — a real, short-lived presigned GET URL. */
 export async function getDownloadUrl(fileId: string): Promise<string | null> {
-  return simulate(() => {
-    const file = files.find((f) => f.id === fileId);
-    if (!file || file.upload_status !== "uploaded") return null;
-    return `/assets/measure-front.png`; // mock stand-in for a presigned GET URL
-  });
+  try {
+    const result = await apiFetch<{ url: string; expiresInSeconds: number }>(`/api/files/${fileId}/download-url`);
+    return result.url;
+  } catch {
+    return null;
+  }
 }

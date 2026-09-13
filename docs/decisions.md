@@ -107,6 +107,26 @@ The tradeoff (jsonb would make a *future* field-set change schema-free) was
 judged less valuable than the above, given the source material treats the
 14-field list as final.
 
+## 6. A suspended admin can't see their own row via plain `SELECT` — added `current_admin_self()`
+
+**Found in Phase 3**, while wiring real session resolution. `admins_select`'s
+`is_admin()` check requires `active = true`, which is correct for "can this
+admin see *other* admins" but also hides a suspended admin's own row from
+themselves — so the client has no reliable way to detect "you are logged in
+but suspended" versus "you were never an admin at all" via ordinary RLS-gated
+reads. Verified directly against the live project (`execute_sql`, run as the
+suspended user): a plain `select * from admins` returned 0 rows for their own
+`user_id`, while `select * from admins where user_id = auth.uid()` also
+returned 0 — the row is invisible, not just filtered elsewhere.
+
+**Fix:** `0009_admin_self_lookup.sql` adds `current_admin_self()`, a
+`security definer` function returning only the caller's own row (via
+`auth.uid()`, no parameters) regardless of `active`. It does not weaken RLS —
+it's narrower than the table itself, and only exposes a caller's own record —
+but it does mean "am I suspended" now goes through an RPC instead of a table
+read. `SessionContext` calls it first when resolving who's logged in. See
+`docs/phase3-report.md` for the before/after verification output.
+
 ## File size / mime-type limits
 
 Not specified anywhere in the source material. Documented default: **10MB**

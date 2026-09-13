@@ -1,7 +1,8 @@
 import { test, expect } from "@playwright/test";
-import { loginOwner, desktopScope } from "./helpers";
+import { loginOwner, desktopScope, skipUnlessLive } from "./helpers";
 
 test("customer search filters live as you type", async ({ page }) => {
+  skipUnlessLive(test);
   await loginOwner(page);
   const main = desktopScope(page);
   await main.getByRole("link", { name: "Customers" }).click();

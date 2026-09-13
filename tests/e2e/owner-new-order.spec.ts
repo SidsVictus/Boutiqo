@@ -1,7 +1,8 @@
 import { test, expect } from "@playwright/test";
-import { loginOwner, desktopScope } from "./helpers";
+import { loginOwner, desktopScope, skipUnlessLive } from "./helpers";
 
 test("full owner new-order flow: A -> E -> save -> confirm", async ({ page }) => {
+  skipUnlessLive(test);
   await loginOwner(page);
   const main = desktopScope(page);
 

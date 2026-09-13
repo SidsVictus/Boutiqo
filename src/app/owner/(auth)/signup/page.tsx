@@ -9,7 +9,7 @@ import { useSession } from "@/lib/session/SessionContext";
 
 export default function OwnerSignupPage() {
   const router = useRouter();
-  const { startDraftSignup } = useSession();
+  const { signUpOwner, signInWithGoogle } = useSession();
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
@@ -23,8 +23,12 @@ export default function OwnerSignupPage() {
     }
     setLoading(true);
     setError(null);
-    await new Promise((r) => setTimeout(r, 350));
-    startDraftSignup(email);
+    const result = await signUpOwner(email, password);
+    setLoading(false);
+    if (!result.ok) {
+      setError(result.message ?? "Could not create the account");
+      return;
+    }
     router.push("/owner/register");
   }
 
@@ -49,16 +53,7 @@ export default function OwnerSignupPage() {
           or
           <hr style={{ flex: 1, border: 0, borderTop: "1px solid var(--line-hairline)" }} />
         </div>
-        <Button
-          variant="secondary"
-          block
-          onClick={() => {
-            // Phase 2 scope boundary: this is the button + its placement only.
-            // Real Google OAuth redirect/callback handling is Phase 3 work,
-            // once a live Supabase Auth provider is configured.
-            setError("Google sign-up isn't wired up in this preview yet.");
-          }}
-        >
+        <Button variant="secondary" block onClick={() => void signInWithGoogle()}>
           Continue with Google
         </Button>
         <p style={{ marginTop: 18, fontSize: 14 }}>
