@@ -1,6 +1,7 @@
 import { createSupabaseRouteClient } from "@/lib/supabase/server";
 import { z } from "zod";
 import { apiError, apiOk, apiValidationError } from "@/lib/api-response";
+import { logSecurityEvent } from "@/lib/log";
 
 const bodySchema = z.object({
   email: z.string().trim().email(),
@@ -24,7 +25,10 @@ export async function POST(request: Request) {
   const supabase = await createSupabaseRouteClient();
   const { data, error } = await supabase.auth.signInWithPassword(parsed.data);
 
-  if (error || !data.session) return apiError(401, "invalid_credentials", "Incorrect email or password");
+  if (error || !data.session) {
+    logSecurityEvent("login_failed", { email: parsed.data.email });
+    return apiError(401, "invalid_credentials", "Incorrect email or password");
+  }
 
   const { data: boutique } = await supabase
     .from("boutiques")
@@ -34,6 +38,7 @@ export async function POST(request: Request) {
 
   if (boutique?.status === "disabled") {
     await supabase.auth.signOut();
+    logSecurityEvent("account_disabled_login_blocked", { userId: data.user.id, boutiqueId: boutique.id });
     return apiError(403, "account_disabled", "This boutique account has been disabled. Contact Boutiqo support.");
   }
 

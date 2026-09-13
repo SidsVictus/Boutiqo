@@ -2,6 +2,7 @@ import { createSupabaseRouteClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { adminCreateBoutiqueSchema } from "@/lib/validation/boutique";
 import { apiError, apiForbidden, apiOk, apiUnauthorized, apiValidationError } from "@/lib/api-response";
+import { logSecurityEvent } from "@/lib/log";
 
 // admin-add: Super Admin creates a tenant directly (a second, independent path
 // into `boutiques` alongside owner self-signup — see docs/decisions.md #4).
@@ -14,10 +15,14 @@ export async function POST(request: Request) {
   if (!user) return apiUnauthorized();
 
   const { data: isAdmin } = await supabase.rpc("is_admin");
-  if (!isAdmin) return apiForbidden("Only Super Admin can add a boutique");
+  if (!isAdmin) {
+    logSecurityEvent("authorization_rejected", { userId: user.id, action: "admin_create_boutique", reason: "not_an_admin" });
+    return apiForbidden("Only Super Admin can add a boutique");
+  }
 
   const { data: role } = await supabase.rpc("current_admin_role");
   if (role === "viewer" || role === "billing_admin") {
+    logSecurityEvent("authorization_rejected", { userId: user.id, action: "admin_create_boutique", reason: `role_${role}_not_permitted` });
     return apiForbidden(`${role} admins cannot add a boutique`);
   }
 

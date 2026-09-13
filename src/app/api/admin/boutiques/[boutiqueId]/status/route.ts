@@ -1,6 +1,7 @@
 import { createSupabaseRouteClient } from "@/lib/supabase/server";
 import { boutiqueStatusSchema } from "@/lib/validation/boutique";
 import { apiError, apiOk, apiUnauthorized, apiValidationError } from "@/lib/api-response";
+import { logSecurityEvent } from "@/lib/log";
 
 // hold / disable / activate. Uses the admin's own RLS-scoped client: the
 // boutiques_update policy plus the enforce_boutique_update_rules trigger (0003
@@ -25,6 +26,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ bou
     .select()
     .single();
 
-  if (error) return apiError(403, "forbidden", error.message.includes("admin") ? error.message : "Not allowed to change this boutique's status");
+  if (error) {
+    logSecurityEvent("authorization_rejected", { userId: user.id, action: "boutique_status_change", boutiqueId, attemptedStatus: parsed.data, reason: error.message });
+    return apiError(403, "forbidden", error.message.includes("admin") ? error.message : "Not allowed to change this boutique's status");
+  }
   return apiOk(data);
 }

@@ -1,6 +1,7 @@
 import { createSupabaseRouteClient } from "@/lib/supabase/server";
 import { orderStageUpdateSchema } from "@/lib/validation/order";
 import { apiError, apiOk, apiUnauthorized, apiValidationError } from "@/lib/api-response";
+import { logSecurityEvent } from "@/lib/log";
 
 export async function POST(request: Request, { params }: { params: Promise<{ orderId: string }> }) {
   const { orderId } = await params;
@@ -21,6 +22,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ ord
     .select()
     .single();
 
-  if (error) return apiError(403, "update_failed", "Could not update the order stage");
+  if (error) {
+    logSecurityEvent("authorization_rejected", { userId: user.id, action: "order_stage_update", orderId, attemptedStage: parsed.data.stage, reason: error.message });
+    return apiError(403, "update_failed", "Could not update the order stage");
+  }
   return apiOk(data);
 }

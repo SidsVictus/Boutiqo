@@ -1,5 +1,6 @@
 import { createSupabaseRouteClient } from "@/lib/supabase/server";
 import { apiError, apiOk, apiUnauthorized } from "@/lib/api-response";
+import { logSecurityEvent } from "@/lib/log";
 
 // "Mark paid" sets advance = total and paid = true. There is intentionally no
 // reverse action anywhere in the design, so no "mark pending" endpoint exists.
@@ -27,6 +28,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ ord
     .select()
     .single();
 
-  if (error) return apiError(403, "update_failed", "Could not mark the order paid");
+  if (error) {
+    logSecurityEvent("authorization_rejected", { userId: user.id, action: "order_mark_paid", orderId, reason: error.message });
+    return apiError(403, "update_failed", "Could not mark the order paid");
+  }
   return apiOk(data);
 }

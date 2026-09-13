@@ -1,6 +1,7 @@
 import { createSupabaseRouteClient } from "@/lib/supabase/server";
 import { z } from "zod";
 import { apiError, apiOk, apiUnauthorized, apiValidationError } from "@/lib/api-response";
+import { logSecurityEvent } from "@/lib/log";
 
 const bodySchema = z.object({ active: z.boolean() });
 
@@ -25,6 +26,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ adm
     .select()
     .single();
 
-  if (error) return apiError(403, "forbidden", "Only an owner admin can suspend or reactivate admins");
+  if (error) {
+    logSecurityEvent("authorization_rejected", { userId: user.id, action: "admin_active_toggle", targetAdminId: adminId, attemptedActive: parsed.data.active, reason: error.message });
+    return apiError(403, "forbidden", "Only an owner admin can suspend or reactivate admins");
+  }
   return apiOk(data);
 }

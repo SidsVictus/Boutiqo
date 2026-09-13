@@ -2,6 +2,7 @@ import { createSupabaseRouteClient } from "@/lib/supabase/server";
 import { presignUploadSchema } from "@/lib/validation/file";
 import { buildObjectKey, presignUploadUrl } from "@/lib/r2";
 import { apiError, apiOk, apiUnauthorized, apiValidationError } from "@/lib/api-response";
+import { logSecurityEvent } from "@/lib/log";
 
 // Authenticate -> authorize (does this user own this boutique/order?) -> validate
 // file -> generate a short-lived presigned PUT URL -> browser uploads directly to
@@ -34,7 +35,10 @@ export async function POST(request: Request) {
       .select("id")
       .eq("id", parsed.data.orderId)
       .maybeSingle();
-    if (!order) return apiError(404, "order_not_found", "Order not found for this account");
+    if (!order) {
+      logSecurityEvent("authorization_rejected", { userId: user.id, action: "presign_upload", reason: "order_not_found_or_not_owned", orderId: parsed.data.orderId });
+      return apiError(404, "order_not_found", "Order not found for this account");
+    }
   }
 
   const { objectKey, fileId: generatedFileId } =
@@ -61,7 +65,10 @@ export async function POST(request: Request) {
     .select()
     .single();
 
-  if (error) return apiError(403, "insert_failed", "Could not authorize the upload");
+  if (error) {
+    logSecurityEvent("upload_failed", { userId: user.id, stage: "presign_insert", boutiqueId: boutique.id, kind: parsed.data.kind, reason: error.message });
+    return apiError(403, "insert_failed", "Could not authorize the upload");
+  }
 
   const uploadUrl = await presignUploadUrl(objectKey, parsed.data.mimeType);
 
