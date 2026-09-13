@@ -46,6 +46,9 @@ export default function OrderConfirmPage() {
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8, fontSize: 14 }}>
           <span>Due {formatShortDate(order.due_date)}</span>
           <span>Total {formatMoney(order.total_amount)} · Advance {formatMoney(order.advance_amount)}</span>
+          <span style={{ color: order.cloth_photo_file_id ? "var(--text-muted)" : "var(--signal-700)" }}>
+            {order.cloth_photo_file_id ? "Cloth photo attached" : "No cloth photo yet — add one from the order record"}
+          </span>
         </div>
       </Card>
       <Button variant="whatsapp" iconLeft={<Send size={16} />} onClick={sendLink} disabled={sent} block>

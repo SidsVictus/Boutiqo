@@ -30,13 +30,6 @@ export interface CreateOrderInput {
   clothDescription?: string;
   styleNotes?: string;
   measurements?: Partial<Record<(typeof MEASUREMENT_FIELDS)[number], number | null>>;
-  /** Phase 3: dropped from the real request body — POST /api/orders has no
-   * such field (a cloth photo can only be attached to a real order id, which
-   * doesn't exist until after this call returns). See
-   * docs/phase3-report.md "Cloth-photo-in-wizard mismatch": the new-order
-   * screen now uploads the photo AFTER order creation succeeds, using the
-   * real order id, via uploadsApi + attachClothPhoto below. */
-  clothPhotoFileId?: string | null;
 }
 
 /** Mirrors POST /api/orders. */

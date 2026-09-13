@@ -110,6 +110,18 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       // via onAuthStateChange, but we also refresh eagerly so the caller can
       // navigate immediately without waiting on that event.
       await refreshSession();
+      // A signed-in user with no boutique row means they created their
+      // auth.users account (owner/signup) but never finished owner/register
+      // + owner/terms — e.g. they closed the tab, and the in-memory
+      // draftSignup from that session is gone. Without this, they'd log in
+      // "successfully" only to be bounced back out of /owner/* by the
+      // no-session guard, forever, with no path back to /owner/register.
+      // Re-seed draftSignup (fields empty — register just re-collects them)
+      // so the caller can route them to finish registration instead.
+      if (!body?.boutique) {
+        setDraftSignup({ email: body?.user?.email ?? email, userId: body?.user?.id ?? "" });
+        return { ok: true, code: "registration_incomplete" };
+      }
       return { ok: true };
     },
     [refreshSession],

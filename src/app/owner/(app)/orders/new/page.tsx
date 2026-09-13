@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/session/SessionContext";
+import { useToast } from "@/lib/session/ToastContext";
 import { listCustomers } from "@/lib/data/customers";
 import { createOrder, listOrders } from "@/lib/data/orders";
 import { ApiError } from "@/lib/data/store";
@@ -31,6 +32,7 @@ const STEPS: StepDef[] = [
 
 export default function NewOrderPage() {
   const { session } = useSession();
+  const { flash } = useToast();
   const boutique = session?.kind === "owner" ? session.boutique : null;
   const router = useRouter();
   const [customers, setCustomers] = React.useState<Customer[]>([]);
@@ -124,11 +126,12 @@ export default function NewOrderPage() {
       });
       if (clothPhotoFile) {
         // A failed photo upload shouldn't block the (already-saved) order —
-        // surface it, but still continue to the confirm screen.
+        // surface it via a toast (which outlives this component, unlike
+        // `error` state) since we navigate away immediately after.
         try {
           await uploadDeferredClothPhoto(activeBoutique.id, order.id, clothPhotoFile);
         } catch {
-          setError("Order saved, but the cloth photo failed to upload. Add it from the order record.");
+          flash("Order saved, but the cloth photo failed to upload. Add it from the order record.", "danger");
         }
       }
       router.push(`/owner/orders/${order.id}/confirm`);

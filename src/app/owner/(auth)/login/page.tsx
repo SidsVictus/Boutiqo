@@ -28,6 +28,10 @@ export default function OwnerLoginPage() {
       else setError(result.message ?? "Incorrect email or password");
       return;
     }
+    if (result.code === "registration_incomplete") {
+      router.push("/owner/register");
+      return;
+    }
     router.push("/owner/dashboard");
   }
 

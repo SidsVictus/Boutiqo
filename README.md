@@ -5,23 +5,27 @@ SaaS: a Super Admin console, self-service boutique owner accounts, and a
 no-login WhatsApp tracking page for the boutique's own customers.
 
 This repository implements **Phase 1** (the Supabase + Cloudflare R2 backend),
-**Phase 2** (the full frontend UI), and **Phase 3** (wiring that UI to the
-real backend). See `docs/phase1-report.md`, `docs/phase2-report.md`, and
-`docs/phase3-report.md` for the full completion reports, and
-`docs/decisions.md` for every design decision made on the design bundle's
-behalf.
+**Phase 2** (the full frontend UI), **Phase 3** (wiring that UI to the real
+backend), and **Phase 4** (a full QA/security/production-readiness audit —
+the final phase). See `docs/phase1-report.md` through `docs/phase4-report.md`
+for the full completion reports, and `docs/decisions.md` for every design
+decision made on the design bundle's behalf.
 
 **Current status:** all 25 screens are wired to the real Supabase project —
 real Auth (signup/login/logout/session persistence), real RLS-scoped reads
 and writes, real file uploads to Cloudflare R2 (once enabled — see "Known
 limitations" below), and the real no-login tracking RPC. The in-memory mock
 data layer Phase 2 built has been retired; `src/lib/data/*.ts` now call the
-real Supabase client / Phase 1's API routes directly. **Live end-to-end
-verification (real HTTP against the real Supabase project, real R2 uploads)
-could not be executed in the sandbox this was built in** — see
-`docs/phase3-report.md` "Known limitations" for exactly what remains
-unverified and why, and what a normal development machine needs to do to
-verify it for real before shipping.
+real Supabase client / Phase 1's API routes directly. Phase 4 re-ran the
+full RLS/business-rule audit live against the database (26 checks, all
+passing) and found and fixed two real frontend bugs (a stuck-login loop for
+an abandoned signup, and a silently-lost cloth-photo-upload-failure toast) —
+see `docs/phase4-report.md` §2. **Live end-to-end verification (real HTTP
+against the real Supabase project, real R2 uploads) has still not been
+executed in any phase** — the sandbox all four phases were built in cannot
+reach `*.supabase.co` or R2's data plane. See `docs/phase4-report.md` §14 for
+the exact, prioritized list of commands a normal development machine needs
+to run to close that gap before this ships.
 
 ## Stack
 
@@ -275,8 +279,10 @@ linked Cloudflare account. This means:
   used, documented with real output in `docs/phase1-report.md` and
   `docs/phase3-report.md`.
 
-See `docs/phase3-report.md` → "Known limitations" for the complete,
-itemized list of what is and isn't verified, and exactly what a normal
-development machine (with real network access) needs to run before this
-ships — `npm run test:rls` and `RUN_LIVE_E2E=1 npm run test:e2e` reproduce
-the same checks over real HTTP once that access exists.
+See `docs/phase4-report.md` for the complete, itemized list of what is and
+isn't verified as of the final phase, the two product decisions that need
+founder sign-off before launch ("Confirm email" setting, Google OAuth
+provider), and §14's exact, prioritized list of what a normal development
+machine (with real network access) needs to run before this ships —
+`RUN_LIVE_RLS_TESTS=1 npm run test:rls` and `RUN_LIVE_E2E=1 npx playwright test`
+reproduce the same checks over real HTTP once that access exists.
