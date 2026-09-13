@@ -1,0 +1,44 @@
+:root{
+--font-display:"Svetze","Aptos Display",Georgia,serif;
+--font-sans:"Aptos","Aptos Display",system-ui,sans-serif;
+--font-mono:"Aptos Mono",ui-monospace,monospace;
+/* Weights */
+--fw-light:300; /* @kind font */
+--fw-regular:400; /* @kind font */
+--fw-semibold:600; /* @kind font */
+--fw-bold:700; /* @kind font */
+--fw-extrabold:800; /* @kind font */
+/* Size scale — 1.2 ratio, anchored at 16px body */
+--fs-3xs:11px;--fs-2xs:12px;--fs-xs:13px;--fs-sm:14px;--fs-md:16px;--fs-lg:18px;--fs-xl:21px;--fs-2xl:25px;--fs-3xl:30px;--fs-4xl:36px;--fs-5xl:44px;--fs-6xl:56px;
+/* Line heights */
+--lh-tight:1.08; /* @kind font */
+--lh-snug:1.25; /* @kind font */
+--lh-normal:1.45; /* @kind font */
+--lh-relaxed:1.6; /* @kind font */
+/* Tracking */
+--ls-display:-0.01em; /* @kind font */
+--ls-tight:-0.015em; /* @kind font */
+--ls-normal:0; /* @kind font */
+--ls-label:0.06em; /* @kind font */
+--ls-caps:0.12em; /* @kind font */
+
+/* Roles — display is Svetze, everything functional is Aptos */
+--type-brand-font:var(--font-display);
+--type-brand-size:var(--fs-5xl);
+--type-brand-lh:var(--lh-tight); /* @kind font */
+--type-h1-font:var(--font-display);
+--type-h1-size:var(--fs-4xl);
+--type-h2-font:var(--font-sans);
+--type-h2-size:var(--fs-2xl);
+--type-h2-weight:var(--fw-bold); /* @kind font */
+--type-h3-font:var(--font-sans);
+--type-h3-size:var(--fs-xl);
+--type-h3-weight:var(--fw-semibold); /* @kind font */
+--type-body-size:var(--fs-md);
+--type-body-lh:var(--lh-normal); /* @kind font */
+--type-small-size:var(--fs-sm);
+--type-label-size:var(--fs-2xs);
+--type-label-weight:var(--fw-semibold); /* @kind font */
+--type-label-ls:var(--ls-label); /* @kind font */
+--type-numeric-font:var(--font-mono);
+}

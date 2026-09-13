@@ -1,0 +1,71 @@
+:root{
+/* Brand ramps — derived from Pallet.png (#efcdca, #4a071e, #ff254c) */
+--plum-900:#2b0411;--plum-800:#3a0517;--plum-700:#4a071e;--plum-600:#661029;--plum-500:#85203c;--plum-400:#a3496a;
+--blush-50:#fdf7f6;--blush-100:#faeceb;--blush-200:#efcdca;--blush-300:#e3b3af;--blush-400:#d29a95;
+--signal-400:#ff5a76;--signal-500:#ff254c;--signal-600:#e00c33;--signal-700:#b40727;
+/* Warm neutrals (hue-shifted toward plum so greys never read cold) */
+--n-0:#ffffff;--n-25:#fffbfa;--n-50:#f8f4f3;--n-100:#efe9e8;--n-200:#e0d7d6;--n-300:#c6b9b8;--n-400:#9c8c8c;--n-500:#756767;--n-600:#574c4c;--n-700:#3b3232;--n-900:#1c1516;
+/* Status hues — used only for order stage + load, never decoratively */
+--amber-100:#fdf1de;--amber-600:#b06f0c;--amber-700:#8a5608;
+--green-100:#e2f3ea;--green-600:#16794a;--green-700:#0f5a37;
+--whatsapp:#25d366;--whatsapp-ink:#0d5c2c;
+
+/* ── Semantic: surfaces ─────────────────────────────────────────────── */
+--surface-page:var(--n-25);
+--surface-card:var(--n-0);
+--surface-sunken:var(--n-50);
+--surface-blush:var(--blush-100);
+--surface-blush-strong:var(--blush-200);
+--surface-inverse:var(--plum-700);
+--surface-overlay:rgba(43,4,17,.44);
+/* ── Semantic: text ─────────────────────────────────────────────────── */
+--text-strong:var(--plum-700);
+--text-body:var(--n-700);
+--text-muted:var(--n-500);
+--text-faint:var(--n-400);
+--text-inverse:var(--blush-50);
+--text-accent:var(--signal-600);
+--text-link:var(--plum-600);
+--text-link-hover:var(--signal-600);
+/* ── Semantic: lines ────────────────────────────────────────────────── */
+--line-hairline:var(--n-100);
+--line-default:var(--n-200);
+--line-strong:var(--n-300);
+--line-brand:var(--blush-300);
+--line-focus:var(--signal-500);
+/* ── Semantic: interactive ──────────────────────────────────────────── */
+--action-primary:var(--plum-700);
+--action-primary-hover:var(--plum-600);
+--action-primary-press:var(--plum-800);
+--action-primary-ink:var(--blush-50);
+--action-accent:var(--signal-500);
+--action-accent-hover:var(--signal-600);
+--action-accent-press:var(--signal-700);
+--action-accent-ink:#ffffff;
+--action-quiet-bg:var(--blush-100);
+--action-quiet-hover:var(--blush-200);
+--action-ink:var(--plum-700);
+--action-disabled-bg:var(--n-100);
+--action-disabled-ink:var(--n-400);
+--focus-ring:0 0 0 3px rgba(255,37,76,.32);
+/* ── Semantic: order stages ─────────────────────────────────────────── */
+--stage-received-bg:var(--n-100);--stage-received-ink:var(--n-600);
+--stage-cutting-bg:var(--amber-100);--stage-cutting-ink:var(--amber-700);
+--stage-stitching-bg:#ffe3e8;--stage-stitching-ink:var(--signal-700);
+--stage-ready-bg:var(--green-100);--stage-ready-ink:var(--green-700);
+--stage-delivered-bg:var(--blush-200);--stage-delivered-ink:var(--plum-700);
+--stage-overdue-bg:var(--signal-500);--stage-overdue-ink:#ffffff;
+/* ── Semantic: calendar load density ────────────────────────────────── */
+--load-0:var(--n-50);
+--load-1:var(--blush-100);
+--load-2:var(--blush-200);
+--load-3:var(--signal-400);
+--load-4:var(--signal-600);
+--load-ink-light:var(--plum-700);
+--load-ink-dark:#ffffff;
+/* ── Semantic: feedback ─────────────────────────────────────────────── */
+--danger:var(--signal-600);--danger-bg:#ffe3e8;
+--success:var(--green-600);--success-bg:var(--green-100);
+--warning:var(--amber-600);--warning-bg:var(--amber-100);
+--info:var(--plum-600);--info-bg:var(--blush-100);
+}

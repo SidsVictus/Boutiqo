@@ -4,11 +4,19 @@ Phone-first order book for small boutiques/tailors in Hyderabad. Multi-tenant
 SaaS: a Super Admin console, self-service boutique owner accounts, and a
 no-login WhatsApp tracking page for the boutique's own customers.
 
-**This repository currently implements Phase 1 only: the Supabase + Cloudflare
-R2 backend.** There is no product UI yet (Phase 2). See
-`docs/phase1-report.md` for the full completion report and
-`docs/decisions.md` for the design decisions this phase made on the design
-bundle's behalf.
+This repository implements **Phase 1** (the Supabase + Cloudflare R2 backend)
+and **Phase 2** (the full frontend UI, built against local mock data — not yet
+wired to the Phase 1 backend; that's Phase 3). See `docs/phase1-report.md` and
+`docs/phase2-report.md` for the full completion reports, and `docs/decisions.md`
+for every design decision made on the design bundle's behalf.
+
+**Phase 2 status:** all 25 screens exist as real, click-through routes with
+the ported design system, both responsive layouts, and every state (loading/
+empty/error/upload states) described in the Phase 2 brief — but every screen
+reads and writes an in-memory mock data layer (`src/lib/data/`), not the real
+Supabase/R2 backend. No screen makes a network call to `*.supabase.co`,
+Cloudflare R2, or Google OAuth. See "Mock data layer" below and
+`docs/phase2-report.md` for exactly what Phase 3 needs to replace.
 
 ## Stack
 
@@ -20,7 +28,17 @@ bundle's behalf.
 - Cloudflare R2 for all binary files (cloth photos, boutique logos) — never
   Supabase Storage.
 - Zod for validation, enforced server-side at every API boundary.
-- Vitest for unit tests and Playwright config for future E2E.
+- Vitest for unit tests, Playwright for browser E2E tests.
+- Design system ported directly from the design handoff bundle: the actual
+  `_ds/boutiqo-design-system-.../tokens/*.css` and `css/components.css` files
+  are imported verbatim (`src/styles/`) — colors, spacing, radius, elevation,
+  motion and the `.bq-*` component classes all come from those files, not a
+  Tailwind remap. Tailwind itself was removed from the project for Phase 2
+  (see `docs/phase2-report.md` "Design system porting" for why). React
+  wrapper components matching each design-system component's `.d.ts` prop
+  contract live in `src/components/ds/`; Boutiqo-specific, prototype-only
+  components (calendar, stepper, measurement grid, etc.) live in
+  `src/components/app/`.
 
 ## Prerequisites
 
@@ -138,7 +156,102 @@ versus what a normal development machine can additionally run.
   presigned GET URL. A wrong token gets a generic 404, indistinguishable from
   any other miss.
 
-## Known limitations (read before Phase 2)
+## Phase 2 — frontend (mock-data mode)
+
+### Running it
+
+```bash
+npm run dev      # http://localhost:3000 — the full app, reading/writing in-memory mock data
+```
+
+Nothing to configure — the mock data layer needs no environment variables and
+makes no network calls. Open `/` and pick a role, or go straight to
+`/owner/login` / `/admin/login` and use the "Fill demo credentials" button
+(any password is accepted for fixture accounts — see
+`src/lib/session/SessionContext.tsx`). State resets on every full page reload
+since it's all in-memory (`src/lib/data/store.ts`).
+
+### Routing structure
+
+Three route groups under `src/app/`, each split into an `(auth)` subgroup (no
+nav chrome — signup/login/terms/signout) and an `(app)` subgroup (wrapped in
+`AppShell`, requires a mock session, redirects to login otherwise):
+
+- `owner/(auth)/{signup,register,terms,login,signout}` and
+  `owner/(app)/{dashboard,customers,customers/new,customers/[id],orders/new,orders/[id],orders/[id]/confirm,orders/[id]/stage,calendar,billing,settings}`
+- `admin/(auth)/{login,signout}` and
+  `admin/(app)/{dashboard,boutiques,boutiques/new,boutiques/[id],boutiques/[id]/access,roles}`
+- `track/[token]` — standalone, no chrome, no auth group (the customer never logs in)
+
+### Mock data layer — the seam Phase 3 replaces
+
+`src/lib/data/` is the **only** thing any screen reads or writes through —
+no component reaches into fixture arrays directly. One module per resource
+(`boutiques.ts`, `customers.ts`, `orders.ts`, `admins.ts`, `tracking.ts`,
+`uploads.ts`), each exporting functions shaped like the real Phase 1 API
+(`createOrder(input): Promise<Order>`, `getOrderTracking(token): Promise<TrackingView | null>`,
+etc.), backed by `store.ts`'s in-memory arrays (typed with Phase 1's actual
+`Boutique`/`Customer`/`Order`/`AdminUser`/`FileRow` types from
+`src/lib/supabase/types.ts`, so field names never drift from the real schema).
+Every function routes through `simulate()`, which adds realistic latency and
+can be forced to fail (`setForceFailure(true)`) — this is what actually
+exercises the loading/error states in the UI during development and testing,
+not just styled-in-isolation markup. Business rules Phase 1's RLS enforces
+(on_hold/disabled blocking new orders, admin sub-role boutique-status limits,
+per-boutique sequential order codes) are re-implemented here so the UI can be
+built and tested against the same behavior before Phase 3 wires up the real
+backend. **Phase 3's job is to replace the internals of these modules with
+real `fetch`/Supabase-client calls — the function signatures and return
+shapes are the contract and should not need to change.**
+
+### Layouts and the responsive breakpoint
+
+The design's mobile (390px, bottom tab bar) and web (≤1280px, 236px sidebar)
+layouts are both real, always-mounted DOM trees (`.bq-shell-mobile` /
+`.bq-shell-web` in `AppShell.tsx`), toggled by a single CSS breakpoint at
+**1024px** (`src/app/app.css`'s `@media (min-width: 1024px)`) — not a manual
+toggle, not JS viewport detection. 1024px was chosen because the web layout's
+236px sidebar plus a comfortable content column needs meaningfully more room
+than a phone frame, while the mobile bottom-tab-bar pattern stays perfectly
+usable well past 390px, up through most tablet widths. Every difference in
+the handoff's "what changes" table is implemented at this same breakpoint:
+nav placement, the owner tab bar's `+` vs. the web "New order" button, page
+title sizing, `bq-g2`/`bq-g3` grid collapsing, the measurement grid's 2-vs-3
+columns, the measurement unit suffix's visibility, auth card width, and cloth
+photo height. Auth screens and the tracking page never render either shell.
+
+### Svetze font licensing — pre-launch blocker
+
+The Svetze display font (used for the wordmark, screen titles, hero numbers
+and empty states) is bundled under a **personal-use license** (per the design
+handoff). It is wired up and used throughout this Phase 2 build for accurate
+visual development, but **a commercial license must be purchased before this
+ships to production.** This is a real, outstanding blocker — not a Phase 2
+detail to lose track of.
+
+### Brand logo
+
+The sidebar/topbar/auth-screen wordmark uses a user-supplied raster lockup
+(`public/brand/logo.png`, via `src/components/app/Logo.tsx`) per explicit
+direction partway through this phase. Note this **overrides** the design
+handoff's own instruction not to use its bundled raster lockup
+(`_ds/.../assets/logo-lockup.jpeg`) and instead set the wordmark live in
+Svetze + a signal-red dot — that guidance still applies to the *handoff's*
+lockup specifically; the image actually used here is a different, user-
+provided asset. See `docs/phase2-report.md` for this judgment call.
+
+### Testing
+
+```bash
+npm test              # vitest — calc/business-logic + mock data layer + R2 (unit)
+npm run test:e2e       # playwright — full browser flows against `next build && next start`
+```
+
+Both suites run entirely offline against the mock data layer / a local S3
+mock — no live Supabase or R2 needed for Phase 2's own tests. See
+`docs/phase2-report.md` for exactly what was run and the results.
+
+## Known limitations from Phase 1 (read before Phase 3)
 
 See `docs/phase1-report.md` → "Known limitations" for the full list — in
 short: this was built in a network-restricted sandbox, so live HTTP-level
