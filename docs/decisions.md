@@ -127,6 +127,40 @@ but it does mean "am I suspended" now goes through an RPC instead of a table
 read. `SessionContext` calls it first when resolving who's logged in. See
 `docs/phase3-report.md` for the before/after verification output.
 
+## 7. owner_admin is the top role, and no admin may suspend themselves
+
+**Found in live testing, not review:** an `owner_admin` suspended their own
+account from the admin console and was permanently locked out. `admins_update`
+requires an **active** `owner_admin` (`is_admin()` filters on `active = true`),
+so the moment the flag flipped, the caller lost the only permission that could
+flip it back — and since no other role may write `public.admins` at all, the
+whole admin console became unmanageable with no in-app recovery path.
+
+`0010_admin_self_and_owner_admin_protection.sql` extends
+`enforce_admin_update_rules()` with two rules:
+
+1. **No admin may change their own `active` flag** —
+   `new.active is distinct from old.active and old.user_id = auth.uid()` is
+   rejected. This is what makes the deadlock structurally impossible.
+2. **Only an `owner_admin` may modify an `owner_admin` row** — defense in
+   depth (today `admins_update` already limits every write to `owner_admin`),
+   but it states the intent and survives any future loosening of that policy.
+
+An `owner_admin` **may** still act on *other* `owner_admin`s. Combined with
+rule 1 this guarantees at least one active `owner_admin` always survives — you
+must be an active `owner_admin` to suspend anyone, and you can never be the
+one you suspend. The alternative (owner_admins untouchable by anyone) was
+rejected because it makes a compromised or departed owner_admin impossible to
+remove without direct database access.
+
+Both rules are skipped when `auth.uid()` is null — the service role or a
+server-side script (seeding, support recovery) that deliberately bypassed RLS
+to get there, the same carve-out `enforce_boutique_update_rules()` makes for
+system-driven writes. That deliberately preserves a break-glass path.
+
+The console also disables the toggle on your own row, so the UI never offers a
+control the database is guaranteed to reject.
+
 ## File size / mime-type limits
 
 Not specified anywhere in the source material. Documented default: **10MB**
