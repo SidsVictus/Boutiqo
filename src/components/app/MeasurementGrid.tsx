@@ -22,7 +22,6 @@ export function MeasurementGrid({ values, onChange }: { values: MeasurementValue
             label={`${meta.n}. ${meta.label}`}
             numeric
             inputMode="decimal"
-            placeholder="0.0"
             value={values[field] ?? ""}
             onChange={(e) => onChange(field, e.target.value)}
             iconRight={<span className="bq-measure-unit">in</span>}
