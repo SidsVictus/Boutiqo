@@ -9,7 +9,7 @@ import { useSession } from "@/lib/session/SessionContext";
 
 export default function OwnerLoginPage() {
   const router = useRouter();
-  const { loginOwner } = useSession();
+  const { login } = useSession();
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
@@ -21,11 +21,17 @@ export default function OwnerLoginPage() {
     setLoading(true);
     setError(null);
     setDisabledNotice(false);
-    const result = await loginOwner(email, password);
+    const result = await login(email, password);
     setLoading(false);
     if (!result.ok) {
       if (result.code === "account_disabled") setDisabledNotice(true);
       else setError(result.message ?? "Incorrect email or password");
+      return;
+    }
+    // Same form for everyone; where you land is decided by who you turn out
+    // to be, after authentication.
+    if (result.code === "admin") {
+      router.push("/admin/dashboard");
       return;
     }
     if (result.code === "registration_incomplete") {

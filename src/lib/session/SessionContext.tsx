@@ -36,6 +36,7 @@ interface LoginResult {
 
 interface SessionContextValue {
   session: Session | undefined;
+  login: (email: string, password: string) => Promise<LoginResult>;
   loginOwner: (email: string, password: string) => Promise<LoginResult>;
   loginAdmin: (email: string, password: string) => Promise<LoginResult>;
   signUpOwner: (email: string, password: string) => Promise<LoginResult>;
@@ -131,6 +132,29 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     [refreshSession],
   );
 
+  // One login pipeline for everyone. The platform console is never advertised
+  // on the public entry point: admins sign in through the same form and are
+  // told apart here, after authentication, by their own admin row.
+  const login = React.useCallback(
+    async (email: string, password: string): Promise<LoginResult> => {
+      const res = await loginOwner(email, password);
+      if (!res.ok) return res;
+
+      const { data: adminRows } = await supabase.rpc("current_admin_self");
+      const admin = Array.isArray(adminRows) ? (adminRows[0] as AdminUser | undefined) : undefined;
+      if (!admin) return res; // a boutique owner (or registration-incomplete)
+
+      if (!admin.active) {
+        await supabase.auth.signOut();
+        return { ok: false, code: "account_suspended", message: "This admin account has been suspended." };
+      }
+      setSession({ kind: "admin", admin });
+      setDraftSignup(null); // loginOwner seeds a draft for anyone without a boutique; an admin isn't one.
+      return { ok: true, code: "admin" };
+    },
+    [loginOwner, supabase],
+  );
+
   const loginAdmin = React.useCallback(
     async (email: string, password: string): Promise<LoginResult> => {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -192,7 +216,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <SessionContext.Provider
-      value={{ session, loginOwner, loginAdmin, signUpOwner, signInWithGoogle, signOut, refreshSession, draftSignup, setDraftFields, clearDraftSignup }}
+      value={{ session, login, loginOwner, loginAdmin, signUpOwner, signInWithGoogle, signOut, refreshSession, draftSignup, setDraftFields, clearDraftSignup }}
     >
       {children}
     </SessionContext.Provider>
