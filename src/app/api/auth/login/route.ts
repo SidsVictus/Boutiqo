@@ -26,7 +26,7 @@ export async function POST(request: Request) {
   const { data, error } = await supabase.auth.signInWithPassword(parsed.data);
 
   if (error || !data.session) {
-    logSecurityEvent("login_failed", { email: parsed.data.email });
+    logSecurityEvent("login_failed", { email: parsed.data.email, reason: error?.message ?? "no_session_returned", status: error?.status });
     return apiError(401, "invalid_credentials", "Incorrect email or password");
   }
 
