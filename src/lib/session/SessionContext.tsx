@@ -118,8 +118,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       // no-session guard, forever, with no path back to /owner/register.
       // Re-seed draftSignup (fields empty — register just re-collects them)
       // so the caller can route them to finish registration instead.
-      if (!body?.boutique) {
-        setDraftSignup({ email: body?.user?.email ?? email, userId: body?.user?.id ?? "" });
+      // apiOk() wraps the route's payload as { data: { user, boutique } } —
+      // reading body.boutique directly (instead of body.data.boutique) was a
+      // real bug: it's always undefined regardless of the real value, so
+      // every successful login was wrongly treated as registration-incomplete.
+      if (!body?.data?.boutique) {
+        setDraftSignup({ email: body?.data?.user?.email ?? email, userId: body?.data?.user?.id ?? "" });
         return { ok: true, code: "registration_incomplete" };
       }
       return { ok: true };
