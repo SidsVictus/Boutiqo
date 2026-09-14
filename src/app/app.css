@@ -464,15 +464,15 @@
   color: var(--plum-700);
 }
 .bq-calendar-cell[data-band="free"] {
-  background: var(--green-100);
-  color: var(--green-700);
+  background: var(--green-600);
+  color: #fff;
 }
 .bq-calendar-cell[data-band="low"] {
-  background: var(--amber-100);
-  color: var(--amber-700);
+  background: var(--amber-600);
+  color: #fff;
 }
 .bq-calendar-cell[data-band="busy"] {
-  background: var(--signal-500);
+  background: var(--signal-600);
   color: #fff;
 }
 .bq-calendar-cell[data-muted="true"] {

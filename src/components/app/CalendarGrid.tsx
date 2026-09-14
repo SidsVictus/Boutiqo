@@ -74,15 +74,15 @@ export function LoadLegend() {
   return (
     <div className="bq-load-legend">
       <span className="bq-load-legend__item">
-        <span className="bq-load-legend__swatch" style={{ background: "var(--green-100)" }} />
+        <span className="bq-load-legend__swatch" style={{ background: "var(--green-600)" }} />
         Free
       </span>
       <span className="bq-load-legend__item">
-        <span className="bq-load-legend__swatch" style={{ background: "var(--amber-100)" }} />
+        <span className="bq-load-legend__swatch" style={{ background: "var(--amber-600)" }} />
         Low work
       </span>
       <span className="bq-load-legend__item">
-        <span className="bq-load-legend__swatch" style={{ background: "var(--signal-500)" }} />
+        <span className="bq-load-legend__swatch" style={{ background: "var(--signal-600)" }} />
         Too busy
       </span>
     </div>
