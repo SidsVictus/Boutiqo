@@ -1,0 +1,12 @@
+/* Svetze — display / brand only. Personal-use license in uploads/Primary Font -svetze/Read Me!.txt */
+@font-face{font-family:"Svetze";src:url("/fonts/Svetze.otf") format("opentype");font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:"Aptos";src:url("/fonts/Aptos-Light.ttf") format("truetype");font-weight:300;font-style:normal;font-display:swap}
+@font-face{font-family:"Aptos";src:url("/fonts/Aptos.ttf") format("truetype");font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:"Aptos";src:url("/fonts/Aptos-Italic.ttf") format("truetype");font-weight:400;font-style:italic;font-display:swap}
+@font-face{font-family:"Aptos";src:url("/fonts/Aptos-SemiBold.ttf") format("truetype");font-weight:600;font-style:normal;font-display:swap}
+@font-face{font-family:"Aptos";src:url("/fonts/Aptos-Bold.ttf") format("truetype");font-weight:700;font-style:normal;font-display:swap}
+@font-face{font-family:"Aptos";src:url("/fonts/Aptos-ExtraBold.ttf") format("truetype");font-weight:800;font-style:normal;font-display:swap}
+@font-face{font-family:"Aptos Display";src:url("/fonts/Aptos-Display.ttf") format("truetype");font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:"Aptos Display";src:url("/fonts/Aptos-Display-Bold.ttf") format("truetype");font-weight:700;font-style:normal;font-display:swap}
+@font-face{font-family:"Aptos Mono";src:url("/fonts/Aptos-Mono.ttf") format("truetype");font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:"Aptos Mono";src:url("/fonts/Aptos-Mono-Bold.ttf") format("truetype");font-weight:700;font-style:normal;font-display:swap}

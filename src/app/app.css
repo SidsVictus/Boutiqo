@@ -1,0 +1,715 @@
+/* App-level layout styles — everything here is built on top of the ported
+   design-system tokens (var(--...)) and components.css .bq-* classes. This
+   file is where Boutiqo's own (non-design-system) layout patterns live: the
+   two-layout app shell, the deadline calendar's 3-colour thermal scale, the
+   stepper pills, order rows, measurement grid, etc. See docs/decisions.md and
+   docs/phase2-report.md for the reasoning behind the responsive breakpoint
+   and any scale choices that override a generic design-system component. */
+
+/* ---------- Responsive breakpoint ----------
+   1024px ("lg"). Below it: phone-style single column + bottom tab bar
+   (the design's primary product surface, and the only sensible choice all
+   the way from 390px up through most tablets). At/above it: the 236px
+   sidebar + fluid content web layout. See docs/phase2-report.md §5. */
+:root {
+  --bp-web: 1024px;
+}
+
+.bq-app-frame {
+  min-height: 100dvh;
+  background: var(--surface-page);
+}
+
+/* ---------- Mobile shell (below --bp-web) ---------- */
+.bq-shell-mobile {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+.bq-appbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: calc(14px + env(safe-area-inset-top)) var(--space-4) 14px;
+  background: var(--surface-page);
+  border-bottom: 1px solid var(--line-hairline);
+}
+.bq-appbar__title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  color: var(--text-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bq-shell-mobile__content {
+  flex: 1;
+  padding: 16px 16px calc(96px + env(safe-area-inset-bottom));
+}
+.bq-tabbar {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  height: calc(52px + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--surface-card);
+  border-top: 1px solid var(--line-hairline);
+}
+.bq-tabbar__item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: transparent;
+  border: 0;
+  min-height: var(--tap-min);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bq-tabbar__item[aria-current="page"] {
+  color: var(--plum-700);
+  font-weight: var(--fw-semibold);
+}
+.bq-tabbar__item--new {
+  color: #fff;
+}
+.bq-tabbar__item--new .bq-tabbar__new-disc {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-pill);
+  background: var(--action-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+/* ---------- Web shell (at/above --bp-web) ---------- */
+.bq-shell-web {
+  display: none;
+}
+.bq-sidebar {
+  width: var(--layout-sidebar);
+  flex: none;
+  background: var(--surface-inverse);
+  color: var(--text-inverse);
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  padding: var(--space-5) var(--space-3);
+}
+.bq-sidebar__brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 var(--space-2) var(--space-6);
+  font-family: var(--font-display);
+  font-size: 22px;
+  color: var(--text-inverse);
+}
+.bq-sidebar__brand-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-pill);
+  background: var(--action-accent);
+}
+.bq-sidebar__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+.bq-sidebar__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 44px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-control);
+  color: var(--blush-200);
+  background: transparent;
+  border: 0;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  text-decoration: none;
+}
+.bq-sidebar__item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+.bq-sidebar__item[aria-current="page"] {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+.bq-sidebar__account {
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  padding-top: var(--space-3);
+  margin-top: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.bq-sidebar__account-name {
+  padding: 0 var(--space-3);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: #fff;
+}
+.bq-sidebar__account-sub {
+  padding: 0 var(--space-3);
+  font-size: var(--fs-xs);
+  color: var(--blush-300);
+  margin-bottom: 8px;
+}
+
+.bq-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: 20px 32px;
+  background: var(--surface-card);
+  border-bottom: 1px solid var(--line-hairline);
+}
+.bq-topbar__title {
+  font-family: var(--font-display);
+  font-size: 28px;
+  color: var(--text-strong);
+}
+.bq-topbar__subtitle {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.bq-web-content {
+  flex: 1;
+  padding: 28px 32px 36px;
+  max-width: var(--layout-app-max);
+}
+.bq-web-body {
+  display: flex;
+  min-height: 100dvh;
+}
+.bq-web-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  .bq-shell-mobile {
+    display: none;
+  }
+  .bq-shell-web {
+    display: block;
+  }
+}
+
+/* ---------- Grid helpers that collapse per §5's table ---------- */
+.bq-g2 {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+}
+.bq-g3 {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+}
+@media (min-width: 1024px) {
+  .bq-g2 {
+    grid-template-columns: 1fr 1fr;
+  }
+  .bq-g3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* ---------- Auth screens ---------- */
+.bq-auth-bg {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 16px;
+  background: var(--surface-blush) center/cover no-repeat;
+  background-image: url("/assets/login-carpet.png");
+}
+.bq-auth-card {
+  width: 100%;
+  max-width: 440px;
+  background: var(--surface-card);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  padding: 28px 24px;
+}
+.bq-auth-card--wide {
+  max-width: 620px;
+}
+@media (min-width: 1024px) {
+  .bq-auth-bg {
+    padding: 40px;
+  }
+}
+.bq-auth-brand {
+  font-family: var(--font-display);
+  font-size: 30px;
+  color: var(--text-strong);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: var(--space-5);
+}
+.bq-auth-brand-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-pill);
+  background: var(--action-accent);
+}
+
+/* ---------- Stat tile ---------- */
+.bq-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--surface-card);
+  border: 1px solid var(--line-hairline);
+  border-radius: var(--radius-card);
+  padding: var(--pad-card);
+}
+.bq-stat__hero {
+  font-family: var(--font-mono);
+  font-size: 30px;
+  font-weight: var(--fw-bold);
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+}
+@media (min-width: 1024px) {
+  .bq-stat__hero {
+    font-size: 38px;
+  }
+}
+
+/* ---------- Stepper pills ---------- */
+.bq-stepper {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.bq-stepper__pill {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--plum-700);
+  background: var(--n-50);
+  border: 0;
+  cursor: pointer;
+  min-height: 40px;
+}
+.bq-stepper__pill-letter {
+  font-family: var(--font-mono);
+}
+.bq-stepper__pill[data-state="current"] {
+  background: var(--plum-700);
+  color: var(--text-inverse);
+}
+.bq-stepper__pill[data-state="completed"] {
+  background: var(--blush-200);
+}
+
+/* ---------- Order row ---------- */
+.bq-order-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line-hairline);
+  background: var(--surface-card);
+  text-decoration: none;
+  color: inherit;
+  min-height: var(--tap-min);
+}
+.bq-order-row[data-fill="overdue"] {
+  background: var(--plum-700);
+  color: var(--text-inverse);
+  border-color: transparent;
+}
+.bq-order-row[data-fill="overdue"] .bq-order-row__meta {
+  color: var(--blush-300);
+}
+.bq-order-row[data-fill="ready"] {
+  background: var(--green-100);
+  color: var(--green-700);
+  border-color: transparent;
+}
+.bq-order-row[data-fill="ready"] .bq-order-row__meta {
+  color: var(--green-700);
+  opacity: 0.75;
+}
+.bq-order-row__meta {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+.bq-order-row__main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.bq-order-row__title {
+  font-weight: var(--fw-semibold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- Measurement grid ---------- */
+.bq-measure-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+@media (min-width: 1024px) {
+  .bq-measure-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.bq-measure-unit {
+  display: none;
+  font-size: var(--fs-xs);
+}
+@media (min-width: 1024px) {
+  .bq-measure-unit {
+    display: inline;
+  }
+}
+
+/* ---------- Voice/type toggle ---------- */
+.bq-voice-toggle {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface-sunken);
+  border-radius: var(--radius-pill);
+}
+.bq-voice-toggle__opt {
+  flex: 1;
+  min-height: 40px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.bq-voice-toggle__opt[aria-pressed="true"] {
+  background: var(--surface-card);
+  color: var(--text-strong);
+  box-shadow: var(--shadow-xs);
+}
+.bq-voice-disc {
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius-pill);
+  background: var(--signal-500);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 24px auto 12px;
+  box-shadow: 0 0 0 10px rgba(255, 37, 76, 0.16);
+}
+
+/* ---------- Calendar (Boutiqo's own 3-colour thermal scale — see
+   src/lib/calc/calendarLoad.ts; this deliberately does NOT reuse the generic
+   design-system LoadCell's 5-level blush/signal scale) ---------- */
+.bq-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+.bq-calendar-cell {
+  aspect-ratio: 1/1;
+  min-height: 56px;
+  border-radius: var(--radius-sm);
+  border: 2px solid transparent;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 6px;
+  cursor: pointer;
+  background: var(--n-50);
+  color: var(--plum-700);
+}
+.bq-calendar-cell[data-band="free"] {
+  background: var(--green-600);
+  color: #fff;
+}
+.bq-calendar-cell[data-band="low"] {
+  background: var(--amber-600);
+  color: #fff;
+}
+.bq-calendar-cell[data-band="busy"] {
+  background: var(--signal-600);
+  color: #fff;
+}
+.bq-calendar-cell[data-muted="true"] {
+  background: var(--n-50);
+  color: var(--n-400);
+  cursor: not-allowed;
+}
+.bq-calendar-cell[data-selected="true"] {
+  border-color: var(--plum-700);
+}
+.bq-calendar-cell__day {
+  font-family: var(--font-mono);
+  font-weight: var(--fw-bold);
+  font-size: 15px;
+}
+.bq-calendar-cell__count {
+  font-size: var(--fs-3xs);
+  font-weight: var(--fw-semibold);
+}
+.bq-load-legend {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.bq-load-legend__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+.bq-load-legend__swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+}
+
+/* ---------- Stage update rows ---------- */
+.bq-stage-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  min-height: var(--tap-min);
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+.bq-stage-row__num {
+  font-family: var(--font-mono);
+  font-weight: var(--fw-bold);
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-pill);
+  background: rgba(0, 0, 0, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--fs-xs);
+  flex: none;
+}
+.bq-stage-row[data-current="true"] {
+  border-color: var(--plum-700);
+}
+.bq-stage-row[data-current="true"] .bq-stage-row__label {
+  font-weight: var(--fw-bold);
+}
+.bq-stage-row[data-done="true"] {
+  background: var(--n-100);
+  color: var(--n-500);
+}
+.bq-stage-row[data-done="true"] .bq-stage-row__label {
+  text-decoration: line-through;
+}
+
+/* ---------- Tracking progress (4 numbered discs) ---------- */
+.bq-track-progress {
+  display: flex;
+  align-items: center;
+}
+.bq-track-progress__step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  position: relative;
+}
+.bq-track-progress__disc {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-pill);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-weight: var(--fw-bold);
+  background: var(--n-100);
+  color: var(--n-500);
+  z-index: 1;
+}
+.bq-track-progress__step[data-done="true"] .bq-track-progress__disc {
+  background: var(--plum-700);
+  color: #fff;
+}
+.bq-track-progress__step[data-current="true"] .bq-track-progress__disc {
+  background: var(--signal-500);
+  color: #fff;
+}
+.bq-track-progress__line {
+  position: absolute;
+  top: 17px;
+  left: -50%;
+  width: 100%;
+  height: 2px;
+  background: var(--n-100);
+  z-index: 0;
+}
+.bq-track-progress__step:first-child .bq-track-progress__line {
+  display: none;
+}
+.bq-track-progress__label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* ---------- Image upload / cloth photo ---------- */
+.bq-upload {
+  border: 2px dashed var(--line-default);
+  border-radius: var(--radius-lg);
+  background: var(--surface-sunken);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 200px;
+  color: var(--text-muted);
+  position: relative;
+  overflow: hidden;
+}
+@media (min-width: 1024px) {
+  .bq-upload {
+    height: 260px;
+  }
+}
+.bq-upload__preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.bq-upload__badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+.bq-upload__progress-track {
+  width: 70%;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--n-100);
+  overflow: hidden;
+}
+.bq-upload__progress-fill {
+  height: 100%;
+  background: var(--action-accent);
+  transition: width var(--dur-base) var(--ease-standard);
+}
+
+/* ---------- Misc ---------- */
+.bq-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--text-muted);
+}
+.bq-empty__title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  color: var(--text-strong);
+}
+.bq-skeleton {
+  background: linear-gradient(90deg, var(--n-100), var(--n-50), var(--n-100));
+  background-size: 200% 100%;
+  border-radius: var(--radius-sm);
+  animation: bq-skeleton-sweep 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bq-skeleton {
+    animation: none;
+    background: var(--n-100);
+  }
+}
+@keyframes bq-skeleton-sweep {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+.bq-back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-control);
+  background: transparent;
+  border: 0;
+  color: var(--text-strong);
+  cursor: pointer;
+}
+.bq-toast-host {
+  position: fixed;
+  bottom: 24px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  z-index: 50;
+  pointer-events: none;
+}
+.bq-toast-host > * {
+  pointer-events: auto;
+}

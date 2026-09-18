@@ -1,0 +1,11 @@
+:root{
+--radius-xs:4px;--radius-sm:8px;--radius-md:12px;--radius-lg:16px;--radius-xl:22px;--radius-2xl:28px;--radius-pill:999px;
+--radius-control:12px;
+--radius-card:16px;
+--radius-sheet:22px;
+--radius-chip:999px;
+/* The logo's containing arch — a pill-capped vertical frame */
+--radius-arch:999px 999px 999px 999px / 96px 96px 96px 96px;
+--border-width:1px; /* @kind other */
+--border-emphasis:1.5px; /* @kind other */
+}
