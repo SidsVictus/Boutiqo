@@ -1,10 +1,17 @@
-# Next.js on Netlify: only declare the build command. Do NOT set `publish` —
-# `.next` is a build cache, not servable static output. Netlify's built-in
-# Next.js Runtime reads `.next` itself and generates the Functions/Edge
-# Functions this app's dynamic routes (API routes, /owner/*, /track/[token])
-# need. Setting `publish = ".next"` (previously configured in the Netlify UI)
-# skips that step entirely, which is why the deployed site 404'd on every
-# route — the deploy log showed "No functions deployed" / "No edge functions
-# deployed" even though the framework was correctly detected as "next".
+# Next.js on Netlify. Explicitly declaring [[plugins]] here is required:
+# once a netlify.toml with a [build] block exists, Netlify stops
+# auto-injecting the framework's build plugin on its own — confirmed from a
+# real build log on this site, which detected "next" correctly but had no
+# "Loading plugins" step at all, then deployed from an EMPTY publish path
+# ("Starting to deploy site from ''", "0 new function(s) to upload"). No
+# functions were ever generated from .next, which is why every route 404'd.
+#
+# Do NOT set `publish` — @netlify/plugin-nextjs manages Next's build output
+# and function generation itself; a manual publish directory (this site
+# previously had `.next`, which is a build cache, not servable output)
+# bypasses that entirely.
 [build]
   command = "npm run build"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
