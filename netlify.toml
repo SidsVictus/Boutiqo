@@ -1,0 +1,10 @@
+# Next.js on Netlify: only declare the build command. Do NOT set `publish` —
+# `.next` is a build cache, not servable static output. Netlify's built-in
+# Next.js Runtime reads `.next` itself and generates the Functions/Edge
+# Functions this app's dynamic routes (API routes, /owner/*, /track/[token])
+# need. Setting `publish = ".next"` (previously configured in the Netlify UI)
+# skips that step entirely, which is why the deployed site 404'd on every
+# route — the deploy log showed "No functions deployed" / "No edge functions
+# deployed" even though the framework was correctly detected as "next".
+[build]
+  command = "npm run build"
