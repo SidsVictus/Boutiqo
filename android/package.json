@@ -1,0 +1,29 @@
+{
+  "name": "boutiqo-android",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "dependencies": {
+    "@react-native-community/netinfo": "12.0.1",
+    "expo": "~57.0.26",
+    "expo-splash-screen": "~57.0.9",
+    "expo-status-bar": "~57.0.1",
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-webview": "13.16.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "@types/react": "~19.2.2",
+    "typescript": "~6.0.3"
+  },
+  "scripts": {
+    "start": "expo start",
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --no-warnings --test src/*.test.ts",
+    "doctor": "npx expo-doctor@latest",
+    "build:apk": "npx eas-cli@latest build --platform android --profile production",
+    "build:apk:preview": "npx eas-cli@latest build --platform android --profile preview"
+  },
+  "private": true
+}
