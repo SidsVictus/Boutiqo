@@ -16,10 +16,12 @@ import { logSecurityEvent } from "@/lib/log";
  * It exchanges the credential for a session cookie here, server-side, then
  * redirects to where this user belongs. `?established=1` (from /auth/confirm,
  * which has already stored a session from an emailed link) skips the exchange
- * and only does the routing; it carries no credential, so it can't sign anyone in. Previously Google sign-in returned
- * straight to /owner/register, which (with no in-memory signup draft after a
- * full-page redirect) bounced the user back to /owner/signup: the "Continue
- * with Google just reloads the page" bug.
+ * and only does the routing; it carries no credential, so it can't sign
+ * anyone in.
+ *
+ * Previously Google sign-in returned straight to /owner/register, which (with
+ * no in-memory signup draft after a full-page redirect) bounced the user back
+ * to /owner/signup: the "Continue with Google just reloads the page" bug.
  */
 export async function GET(request: NextRequest) {
   const url = request.nextUrl;

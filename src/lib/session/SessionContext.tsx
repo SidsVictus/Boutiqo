@@ -232,7 +232,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         return { ok: false, code: "already_registered", message: "An account with this email already exists. Log in instead." };
       }
       // Email confirmation required: no session until the link in the email is
-      // opened; that link lands on /auth/callback, which continues to /owner/register.
+      // opened; that link lands on /auth/confirm, which continues to /owner/register.
       if (!data.session) return { ok: true, code: "confirm_email" };
       // Signed in straight away (no confirmation required): move the session
       // into the main, cookie-backed client.
