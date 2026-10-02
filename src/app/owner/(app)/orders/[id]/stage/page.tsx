@@ -21,10 +21,14 @@ export default function UpdateStagePage() {
   if (!order) return <div className="bq-skeleton" style={{ height: 240 }} />;
 
   async function handleSelect(stage: OrderStage) {
-    const updated = await updateOrderStage(order!.id, stage);
-    setOrder(updated);
-    flash(`Order ${updated.order_code} moved to ${STAGES[stage].toLowerCase()}.`);
-    setTimeout(() => router.push(`/owner/orders/${updated.id}`), 500);
+    try {
+      const updated = await updateOrderStage(order!.id, stage);
+      setOrder(updated);
+      flash(`Order ${updated.order_code} moved to ${STAGES[stage].toLowerCase()}.`);
+      setTimeout(() => router.push(`/owner/orders/${updated.id}`), 500);
+    } catch {
+      flash("Couldn't update the stage. Try again.", "danger");
+    }
   }
 
   return (

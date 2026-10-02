@@ -10,6 +10,7 @@ import { Logo } from "@/components/app/Logo";
 import { Send } from "@/components/app/icons";
 import { formatMoney, formatShortDate } from "@/lib/calc/format";
 import { STAGES } from "@/components/ds/StageBadge";
+import { whatsappLink, whatsappNumber } from "@/lib/tracking/share";
 
 /** No login, no nav chrome, reachable only via the tracking-token URL — per
  * the handoff, this page is deliberately isolated from the rest of the app. */
@@ -48,7 +49,7 @@ export default function CustomerTrackingPage() {
           <div className="bq-auth-card" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div>
-                <div className="bq-num" style={{ fontSize: 13, color: "var(--text-muted)" }}>
+                <div className="bq-num" style={{ fontSize: 15, color: "var(--text-muted)" }}>
                   {view.orderCode}
                 </div>
                 <h1 style={{ margin: 0, fontSize: 20 }}>{view.garmentType}</h1>
@@ -67,11 +68,11 @@ export default function CustomerTrackingPage() {
             <RemoteImage status={view.clothPhotoUrl ? "ready" : "missing"} src={view.clothPhotoUrl ?? undefined} />
 
             <div className="bq-card" style={{ background: "var(--surface-sunken)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, marginBottom: 4 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 16, marginBottom: 4 }}>
                 <span>Total</span>
                 <span className="bq-num">{formatMoney(view.totalAmount)}</span>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, marginBottom: 4 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 16, marginBottom: 4 }}>
                 <span>Advance paid</span>
                 <span className="bq-num">{formatMoney(view.advanceAmount)}</span>
               </div>
@@ -83,9 +84,19 @@ export default function CustomerTrackingPage() {
               </div>
             </div>
 
-            <Button variant="whatsapp" iconLeft={<Send size={16} />} block>
-              Message {view.boutiqueName}
-            </Button>
+            {whatsappNumber(view.boutiquePhone) ? (
+              <Button
+                as="a"
+                href={whatsappLink(whatsappNumber(view.boutiquePhone), `Hi ${view.boutiqueName}, I'm asking about my order ${view.orderCode}.`)}
+                target="_blank"
+                rel="noopener noreferrer"
+                variant="whatsapp"
+                iconLeft={<Send size={16} />}
+                block
+              >
+                Message {view.boutiqueName}
+              </Button>
+            ) : null}
           </div>
         )}
       </div>

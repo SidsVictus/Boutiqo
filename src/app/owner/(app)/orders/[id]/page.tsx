@@ -13,11 +13,17 @@ import { MEASUREMENT_FIELDS } from "@/lib/supabase/types";
 import { balance, effectiveStage } from "@/lib/calc/order";
 import { formatMoney, formatShortDate } from "@/lib/calc/format";
 import { useToast } from "@/lib/session/ToastContext";
+import { useSession } from "@/lib/session/SessionContext";
+import { SendTrackingLink } from "@/components/app/SendTrackingLink";
+import { ApiError } from "@/lib/data/store";
 import type { Order, Customer } from "@/lib/supabase/types";
 
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { flash } = useToast();
+  const { session } = useSession();
+  const boutiqueName = session?.kind === "owner" ? session.boutique.name : "";
+  const [markingPaid, setMarkingPaid] = React.useState(false);
   const [order, setOrder] = React.useState<Order | null | undefined>(undefined);
   const [customer, setCustomer] = React.useState<Customer | null>(null);
 
@@ -46,16 +52,23 @@ export default function OrderDetailPage() {
   const measurementsSet = MEASUREMENT_FIELDS.filter((f) => typeof order[f] === "number");
 
   async function handleMarkPaid() {
-    const updated = await markOrderPaid(order!.id);
-    setOrder(updated);
-    flash(`Order ${updated.order_code} marked paid.`, "success");
+    setMarkingPaid(true);
+    try {
+      const updated = await markOrderPaid(order!.id);
+      setOrder(updated);
+      flash(`Order ${updated.order_code} marked paid.`, "success");
+    } catch (err) {
+      flash(err instanceof ApiError ? err.message : "Couldn't mark the order paid. Try again.", "danger");
+    } finally {
+      setMarkingPaid(false);
+    }
   }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 640 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
-          <div className="bq-num" style={{ fontSize: 13, color: "var(--text-muted)" }}>
+          <div className="bq-num" style={{ fontSize: 15, color: "var(--text-muted)" }}>
             {order.order_code}
           </div>
           <h1 style={{ margin: 0 }}>{customer.name}</h1>
@@ -68,14 +81,18 @@ export default function OrderDetailPage() {
           Update stage
         </Button>
         {!order.paid && (
-          <Button variant="accent" onClick={handleMarkPaid}>
-            Mark paid
+          <Button variant="accent" onClick={() => void handleMarkPaid()} disabled={markingPaid}>
+            {markingPaid ? "Saving…" : "Mark paid"}
           </Button>
         )}
       </div>
 
+      <Card title="Customer tracking link">
+        <SendTrackingLink order={order} customer={customer} boutiqueName={boutiqueName} onCustomerUpdated={setCustomer} />
+      </Card>
+
       <Card title="Work details">
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 14 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 16 }}>
           <span>Garment: {order.garment_type === "Other" ? order.garment_type_other : order.garment_type}</span>
           {order.tailor_name ? <span>Tailor: {order.tailor_name}</span> : null}
           {order.cloth_description ? <span>Cloth: {order.cloth_description}</span> : null}
@@ -104,7 +121,7 @@ export default function OrderDetailPage() {
       )}
 
       <Card title="Billing">
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 14 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 16 }}>
           <span>Total: {formatMoney(order.total_amount)}</span>
           <span>Advance: {formatMoney(order.advance_amount)}</span>
           <span style={{ color: due > 0 ? "var(--danger)" : "var(--success)", fontWeight: 700 }}>

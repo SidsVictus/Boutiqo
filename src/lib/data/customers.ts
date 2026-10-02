@@ -42,3 +42,11 @@ export async function createCustomer(input: CreateCustomerInput): Promise<Custom
     body: JSON.stringify({ name: input.name, phone: input.phone, address: input.address, instagramHandle: input.instagramHandle }),
   });
 }
+
+/** Owner updates a customer's phone (e.g. to send the tracking link). RLS
+ * (customers_update) limits this to the caller's own boutique. */
+export async function updateCustomerPhone(customerId: string, phone: string): Promise<Customer> {
+  const { data, error } = await db().from("customers").update({ phone }).eq("id", customerId).select().single();
+  if (error || !data) throw new ApiError("update_failed", "Couldn't save the phone number. Try again.");
+  return data as Customer;
+}

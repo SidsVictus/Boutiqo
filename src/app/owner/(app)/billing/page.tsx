@@ -39,9 +39,13 @@ export default function OwnerBillingPage() {
   if (!boutique) return null;
 
   async function handleMarkPaid(order: Order) {
-    const updated = await markOrderPaid(order.id);
-    flash(`Order ${updated.order_code} marked paid.`, "success");
-    load();
+    try {
+      const updated = await markOrderPaid(order.id);
+      flash(`Order ${updated.order_code} marked paid.`, "success");
+      load();
+    } catch {
+      flash("Couldn't mark the order paid. Try again.", "danger");
+    }
   }
 
   if (orders.length === 0) {
@@ -63,7 +67,7 @@ export default function OwnerBillingPage() {
               Due {formatShortDate(o.due_date)} · Balance {formatMoney(balance(o.total_amount, o.advance_amount))}
             </span>
           </div>
-          <Button size="sm" variant="accent" onClick={() => handleMarkPaid(o)}>
+          <Button size="sm" variant="accent" onClick={() => void handleMarkPaid(o)}>
             Mark paid
           </Button>
         </div>

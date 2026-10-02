@@ -6,17 +6,18 @@ import { getOrder } from "@/lib/data/orders";
 import { getCustomer } from "@/lib/data/customers";
 import { Button } from "@/components/ds/Button";
 import { Card } from "@/components/ds/Card";
-import { Check, Send } from "@/components/app/icons";
+import { Check } from "@/components/app/icons";
+import { SendTrackingLink } from "@/components/app/SendTrackingLink";
+import { useSession } from "@/lib/session/SessionContext";
 import { formatMoney, formatShortDate } from "@/lib/calc/format";
-import { useToast } from "@/lib/session/ToastContext";
 import type { Order, Customer } from "@/lib/supabase/types";
 
 export default function OrderConfirmPage() {
   const { id } = useParams<{ id: string }>();
-  const { flash } = useToast();
+  const { session } = useSession();
+  const boutiqueName = session?.kind === "owner" ? session.boutique.name : "";
   const [order, setOrder] = React.useState<Order | null>(null);
   const [customer, setCustomer] = React.useState<Customer | null>(null);
-  const [sent, setSent] = React.useState(false);
 
   React.useEffect(() => {
     getOrder(id).then(async (o) => {
@@ -27,10 +28,6 @@ export default function OrderConfirmPage() {
 
   if (!order || !customer) return <div className="bq-skeleton" style={{ height: 200 }} />;
 
-  function sendLink() {
-    setSent(true);
-    flash(`Tracking link sent to ${customer!.name} on WhatsApp.`, "success");
-  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 480 }}>
@@ -43,7 +40,7 @@ export default function OrderConfirmPage() {
         </h1>
       </div>
       <Card title={customer.name} meta={order.garment_type === "Other" ? order.garment_type_other : order.garment_type}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8, fontSize: 14 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8, fontSize: 16 }}>
           <span>Due {formatShortDate(order.due_date)}</span>
           <span>Total {formatMoney(order.total_amount)} · Advance {formatMoney(order.advance_amount)}</span>
           <span style={{ color: order.cloth_photo_file_id ? "var(--text-muted)" : "var(--signal-700)" }}>
@@ -51,9 +48,7 @@ export default function OrderConfirmPage() {
           </span>
         </div>
       </Card>
-      <Button variant="whatsapp" iconLeft={<Send size={16} />} onClick={sendLink} disabled={sent} block>
-        {sent ? "Tracking link sent" : "Send tracking link"}
-      </Button>
+      <SendTrackingLink order={order} customer={customer} boutiqueName={boutiqueName} onCustomerUpdated={setCustomer} />
       <Button as="a" href={`/owner/orders/${order.id}`} variant="secondary" block>
         View order record
       </Button>
