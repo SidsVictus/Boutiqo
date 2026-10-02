@@ -36,7 +36,8 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
-  const isProtectedOwner = path.startsWith("/owner/") && !path.startsWith("/owner/signup") && !path.startsWith("/owner/register") && !path.startsWith("/owner/terms") && !path.startsWith("/owner/login") && !path.startsWith("/owner/signout");
+  const PUBLIC_OWNER_PATHS = ["/owner/signup", "/owner/register", "/owner/terms", "/owner/login", "/owner/signout", "/owner/forgot-password", "/owner/reset-password"];
+  const isProtectedOwner = path.startsWith("/owner/") && !PUBLIC_OWNER_PATHS.some((p) => path.startsWith(p));
   const isProtectedAdmin = path.startsWith("/admin/") && !path.startsWith("/admin/login") && !path.startsWith("/admin/signout");
 
   if (!user && (isProtectedOwner || isProtectedAdmin)) {

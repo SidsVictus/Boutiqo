@@ -27,6 +27,11 @@ export async function POST(request: Request) {
 
   if (error || !data.session) {
     logSecurityEvent("login_failed", { email: parsed.data.email, reason: error?.message ?? "no_session_returned", status: error?.status });
+    // Only reported after the password was checked, so it reveals nothing to
+    // someone guessing: tell the real owner what to do instead of "incorrect password".
+    if (error?.code === "email_not_confirmed") {
+      return apiError(403, "email_not_confirmed", "Confirm your email first: open the link we sent to your inbox, then log in.");
+    }
     return apiError(401, "invalid_credentials", "Incorrect email or password");
   }
 

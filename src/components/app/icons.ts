@@ -27,4 +27,6 @@ export {
   Upload,
   LogOut,
   ImageIcon,
+  Eye,
+  EyeOff,
 } from "lucide-react";

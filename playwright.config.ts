@@ -2,6 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  testIgnore: ["auth/**"], // offline auth suite has its own config: playwright.auth.config.ts
   fullyParallel: true,
   retries: 0,
   reporter: [["list"]],

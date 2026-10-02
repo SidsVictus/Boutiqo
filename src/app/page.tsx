@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { Button } from "@/components/ds/Button";
 import { Logo } from "@/components/app/Logo";
-import { useSession } from "@/lib/session/SessionContext";
+import { GoogleButton } from "@/components/app/GoogleButton";
+import { useAuthPage } from "@/lib/auth/useAuthPage";
 
 /**
  * Root landing = the entry screen for a new boutique owner. Customers never
@@ -12,7 +13,7 @@ import { useSession } from "@/lib/session/SessionContext";
  * (or an admin, per SessionContext's unified `login`) goes to /owner/login.
  */
 export default function Home() {
-  const { signInWithGoogle } = useSession();
+  const { urlError } = useAuthPage();
 
   return (
     <main className="bq-auth-bg">
@@ -27,32 +28,12 @@ export default function Home() {
         <p style={{ color: "var(--text-muted)", marginBottom: 20 }}>
           Sign in with the Gmail account you use for the boutique. No password to remember.
         </p>
-        <Button
-          variant="secondary"
-          block
-          onClick={() => void signInWithGoogle()}
-          iconLeft={
-            <span
-              aria-hidden="true"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: 22,
-                height: 22,
-                borderRadius: "999px",
-                background: "var(--surface-blush)",
-                color: "var(--text-strong)",
-                fontSize: 13,
-                fontWeight: 700,
-              }}
-            >
-              G
-            </span>
-          }
-        >
-          Continue with Google
-        </Button>
+        {urlError ? (
+          <div role="alert" className="bq-card" style={{ background: "var(--danger-bg)", color: "var(--signal-700)", marginBottom: 16 }}>
+            {urlError}
+          </div>
+        ) : null}
+        <GoogleButton />
         <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "22px 0 18px", color: "var(--text-faint)", fontSize: 12, letterSpacing: "0.06em", textTransform: "uppercase" }}>
           <hr style={{ flex: 1, border: 0, borderTop: "1px solid var(--line-hairline)" }} />
           Already set up
