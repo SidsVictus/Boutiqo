@@ -20,7 +20,11 @@ export default function OwnerTermsPage() {
   const [accepted, setAccepted] = React.useState(false);
 
   React.useEffect(() => {
-    if (!draftSignup?.fields && !accepted && session?.kind !== "owner") router.replace("/owner/signup");
+    if (session === undefined || accepted) return;
+    if (session?.kind === "owner") router.replace("/owner/dashboard");
+    // A reload here loses the in-memory fields but not the sign-in: go back a
+    // step to re-enter them rather than all the way to signup.
+    else if (!draftSignup?.fields) router.replace(draftSignup ? "/owner/register" : "/owner/signup");
   }, [draftSignup, accepted, session, router]);
 
   if (!draftSignup?.fields && !accepted) return null;
@@ -43,6 +47,11 @@ export default function OwnerTermsPage() {
       clearDraftSignup();
       router.push("/owner/dashboard");
     } catch (err) {
+      if (err instanceof ApiError && err.code === "already_registered") {
+        await refreshSession();
+        router.replace("/owner/dashboard");
+        return;
+      }
       setError(err instanceof ApiError ? err.message : "Could not complete registration. Try again.");
     } finally {
       setLoading(false);
