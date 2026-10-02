@@ -174,21 +174,30 @@ function Shell({ url, origin }: { url: string; origin: string }) {
 
   // Backstop for onShouldStartLoadWithRequest: react-native-webview lets a
   // navigation through if JS doesn't answer within 250ms (common in Expo Go's
-  // dev mode, and on slow phones). A non-app page that starts loading anyway
-  // is stopped here and handed to Android instead.
+  // dev mode, and on slow phones). Android only reports the new URL once the
+  // page has committed, so a non-app page seen here is already on screen: hand
+  // it to Android and put the app back.
   const escapedUrlRef = useRef<string | null>(null);
-  const handleEscapedNavigation = useCallback(
+  const escapeToApp = useCallback(
     (target: string) => {
-      if (escapedUrlRef.current === target) return true;
-      const decision = classifyNavigation(target, origin);
-      if (decision.kind === "internal") return false;
-      escapedUrlRef.current = target;
-      devLog("navigation-escaped", { url: redactUrl(target) });
-      webRef.current?.stopLoading();
-      if (decision.kind === "external") openExternal(decision.url);
-      return true;
+      if (settleTimer.current) clearTimeout(settleTimer.current);
+      if (escapedUrlRef.current !== target) {
+        escapedUrlRef.current = target;
+        devLog("navigation-escaped", { url: redactUrl(target) });
+        webRef.current?.stopLoading();
+        const decision = classifyNavigation(target, origin);
+        if (decision.kind === "external") openExternal(decision.url);
+      }
+      reloadApp();
     },
-    [origin, openExternal],
+    [origin, openExternal, reloadApp],
+  );
+
+  // A top-level URL that isn't the web app and isn't an in-place scheme
+  // (about:blank, blob:, data:).
+  const isForeignUrl = useCallback(
+    (target: string) => !isAppUrl(target) && classifyNavigation(target, origin).kind !== "internal",
+    [isAppUrl, origin],
   );
 
   const onNavigationStateChange = useCallback(
@@ -197,11 +206,11 @@ function Shell({ url, origin }: { url: string; origin: string }) {
       if (isAppUrl(nav.url)) {
         lastUrlRef.current = nav.url;
         escapedUrlRef.current = null;
-      } else if (nav.loading) {
-        handleEscapedNavigation(nav.url);
+      } else if (isForeignUrl(nav.url)) {
+        escapeToApp(nav.url);
       }
     },
-    [isAppUrl, handleEscapedNavigation],
+    [isAppUrl, isForeignUrl, escapeToApp],
   );
 
   const onLoad = useCallback(() => {
@@ -223,10 +232,8 @@ function Shell({ url, origin }: { url: string; origin: string }) {
       devLog("load-error", { code, description, url: redactUrl(event.nativeEvent.url) });
       // A non-app page failed inside the WebView: send it to Android and put
       // the app back, rather than showing an error for a page that isn't ours.
-      if (hasLoaded && !isAppUrl(event.nativeEvent.url)) {
-        if (settleTimer.current) clearTimeout(settleTimer.current);
-        handleEscapedNavigation(event.nativeEvent.url);
-        reloadApp();
+      if (isForeignUrl(event.nativeEvent.url)) {
+        escapeToApp(event.nativeEvent.url);
         return;
       }
       if (offlineRef.current || /INTERNET_DISCONNECTED|NETWORK_CHANGED/i.test(description)) fail("offline");
@@ -234,7 +241,7 @@ function Shell({ url, origin }: { url: string; origin: string }) {
       else if (/CONNECTION_REFUSED|CONNECTION_RESET|NAME_NOT_RESOLVED|ADDRESS_UNREACHABLE/i.test(description)) fail("server");
       else fail("load-failed");
     },
-    [fail, hasLoaded, isAppUrl, handleEscapedNavigation, reloadApp],
+    [fail, isForeignUrl, escapeToApp],
   );
 
   const onHttpError = useCallback(
@@ -243,9 +250,10 @@ function Shell({ url, origin }: { url: string; origin: string }) {
       // web app's own 404) are real app UI and stay on screen.
       const { statusCode } = event.nativeEvent;
       devLog("http-error", { statusCode, url: redactUrl(event.nativeEvent.url) });
-      if (statusCode >= 500 && isAppUrl(event.nativeEvent.url)) fail("server");
+      if (isForeignUrl(event.nativeEvent.url)) escapeToApp(event.nativeEvent.url);
+      else if (statusCode >= 500) fail("server");
     },
-    [fail, isAppUrl],
+    [fail, isForeignUrl, escapeToApp],
   );
 
   const onRenderProcessGone = useCallback(() => {
