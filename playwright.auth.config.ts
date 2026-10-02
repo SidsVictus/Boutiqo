@@ -9,6 +9,7 @@ const MOCK = "http://127.0.0.1:54321";
 
 export default defineConfig({
   testDir: "./tests/e2e/auth",
+  timeout: 60_000,
   fullyParallel: false,
   workers: 1, // one shared mock backend
   retries: 0,
@@ -35,6 +36,12 @@ export default defineConfig({
         NEXT_PUBLIC_SUPABASE_URL: MOCK,
         NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon-key",
         SUPABASE_SERVICE_ROLE_KEY: "service-role-key",
+        // Photo storage: the mock's S3 stand-in (rejects checksum-mismatched PUTs like R2).
+        R2_ACCOUNT_ID: "test",
+        R2_ACCESS_KEY_ID: "test-key",
+        R2_SECRET_ACCESS_KEY: "test-secret",
+        R2_BUCKET_NAME: "boutiqo-test",
+        R2_ENDPOINT: `${MOCK}/s3`,
       },
     },
   ],

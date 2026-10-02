@@ -23,7 +23,7 @@ function reset() {
     codes: new Map(), // pkce auth code -> { userId, challenge, used }
     emailTokens: new Map(), // email-link token -> { userId, type, challenge, redirectTo }
     outbox: [], // { to, type, link }
-    tables: { boutiques: [], admins: [] },
+    tables: { boutiques: [], admins: [], customers: [], orders: [], files: [] },
   };
 }
 reset();
@@ -244,6 +244,18 @@ async function handleAuth(req, res, url, path) {
     return res.end();
   }
 
+  if (path === "/admin/users" && req.method === "POST") {
+    if (!isServiceRole(req)) return authError(res, 403, "not_admin", "User not allowed");
+    const email = String(body.email || "").toLowerCase();
+    if (state.users.has(email)) return authError(res, 422, "email_exists", "A user with this email address has already been registered");
+    const user = makeUser({ email, password: body.password ?? null, confirmed: !!body.email_confirm });
+    return json(res, 200, publicUser(user));
+  }
+  if (path.startsWith("/admin/users/") && req.method === "DELETE") {
+    const id = path.split("/").pop();
+    for (const [email, u] of state.users) if (u.id === id) state.users.delete(email);
+    return json(res, 200, {});
+  }
   if (path === "/logout") return json(res, 204);
   if (path === "/settings") return json(res, 200, { external: { google: state.config.googleEnabled, email: true }, mailer_autoconfirm: !state.config.confirmEmail });
   return authError(res, 404, "not_found", `mock: no auth route ${req.method} ${path}`);
@@ -252,11 +264,52 @@ async function handleAuth(req, res, url, path) {
 function filterRows(rows, params) {
   let out = rows;
   for (const [key, value] of params) {
-    if (["select", "order", "limit", "offset"].includes(key)) continue;
-    const m = /^eq\.(.*)$/.exec(value);
-    if (m) out = out.filter((r) => String(r[key]) === m[1]);
+    if (["select", "order", "limit", "offset", "or"].includes(key)) continue;
+    let m = /^eq\.(.*)$/.exec(value);
+    if (m) {
+      out = out.filter((r) => String(r[key]) === m[1]);
+      continue;
+    }
+    m = /^ilike\.(.*)$/.exec(value);
+    if (m) {
+      const re = new RegExp(`^${m[1].replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*|%/g, ".*")}$`, "i");
+      out = out.filter((r) => re.test(String(r[key] ?? "")));
+    }
   }
   return out;
+}
+
+const OWNED_TABLES = new Set(["customers", "orders", "files"]);
+const MEASUREMENTS = ["m01_blouse_back_length", "m02_full_shoulder_width", "m03_shoulder_strap", "m04_sleeve_length", "m05_sleeve_round", "m06_arm_round", "m07_armhole_around", "m08_back_neck_depth", "m09_front_neck_depth", "m10_chest_around", "m11_bust_around", "m12_waist_around", "m13_shoulders_to_apex", "m14_front_length"];
+
+// RLS stand-in: owners see only their own boutique's rows; active admins see all.
+function scope(table, user, service) {
+  const rows = state.tables[table] ?? (state.tables[table] = []);
+  if (service) return rows;
+  if (!user) return [];
+  const admin = state.tables.admins.find((a) => a.user_id === user.id && a.active);
+  if (admin) return rows;
+  if (table === "boutiques") return rows.filter((r) => r.owner_user_id === user.id);
+  if (table === "admins") return rows.filter((r) => r.user_id === user.id);
+  const own = state.tables.boutiques.find((b) => b.owner_user_id === user.id);
+  return own && OWNED_TABLES.has(table) ? rows.filter((r) => r.boutique_id === own.id) : [];
+}
+
+function newRow(table, body) {
+  const now = new Date().toISOString();
+  const base = { id: randomUUID(), created_at: now, updated_at: now };
+  if (table === "customers") return { ...base, phone: null, address: null, instagram_handle: null, customer_since: now.slice(0, 10), ...body };
+  if (table === "orders") {
+    const boutique = state.tables.boutiques.find((b) => b.id === body.boutique_id);
+    boutique.order_seq += 1;
+    const empty = Object.fromEntries(MEASUREMENTS.map((f) => [f, null]));
+    return {
+      ...base, ...empty, stage: "received", paid: false, garment_type_other: null, tailor_name: null, cloth_description: null, style_notes: null, cloth_photo_file_id: null,
+      order_code: `BQ-${String(boutique.order_seq).padStart(4, "0")}`, tracking_token: randomBytes(32).toString("hex"), ...body,
+    };
+  }
+  if (table === "files") return { ...base, upload_status: "pending", order_id: null, ...body };
+  return { ...base, status: "active", order_seq: 0, logo_file_id: null, ...body };
 }
 
 async function handleRest(req, res, url, path) {
@@ -272,26 +325,86 @@ async function handleRest(req, res, url, path) {
   };
 
   if (path === "/rpc/current_admin_self") return json(res, 200, user ? state.tables.admins.filter((a) => a.user_id === user.id) : []);
+  if (path === "/rpc/get_order_tracking") {
+    const { p_token } = await readBody(req);
+    const o = state.tables.orders.find((r) => r.tracking_token === p_token);
+    if (!o) return reply([]);
+    const b = state.tables.boutiques.find((x) => x.id === o.boutique_id);
+    const f = state.tables.files.find((x) => x.id === o.cloth_photo_file_id && x.upload_status === "uploaded");
+    const overdue = !["ready", "delivered"].includes(o.stage) && o.due_date < new Date().toISOString().slice(0, 10);
+    return reply([{
+      order_code: o.order_code, garment_type: o.garment_type, stage: o.stage, effective_stage: overdue ? "overdue" : o.stage, due_date: o.due_date,
+      total_amount: o.total_amount, advance_amount: o.advance_amount, balance_amount: o.total_amount - o.advance_amount, paid: o.paid,
+      boutique_name: b.name, boutique_phone: b.phone, cloth_object_key: f?.object_key ?? null,
+    }]);
+  }
+  const me = user && state.tables.admins.find((a) => a.user_id === user.id && a.active);
+  if (path === "/rpc/is_admin") return json(res, 200, !!me);
+  if (path === "/rpc/current_admin_role") return json(res, 200, me ? me.role : null);
   if (path.startsWith("/rpc/")) return json(res, 200, []);
 
   const table = path.slice(1);
-  const rows = state.tables[table] ?? [];
-  if (req.method === "GET" || req.method === "HEAD") {
-    // RLS stand-in: an owner sees only their own boutique.
-    let visible = rows;
-    if (table === "boutiques" && !service) visible = user ? rows.filter((r) => r.owner_user_id === user.id) : [];
-    return reply(filterRows(visible, url.searchParams));
-  }
+  const visible = scope(table, user, service);
+  if (req.method === "GET" || req.method === "HEAD") return reply(filterRows(visible, url.searchParams));
+
   if (req.method === "POST") {
-    if (table !== "boutiques" || !service) return json(res, 403, { code: "42501", message: "new row violates row-level security policy" });
     const body = await readBody(req);
-    const now = new Date().toISOString();
-    const row = { id: randomUUID(), status: "active", order_seq: 0, logo_file_id: null, created_at: now, updated_at: now, ...body };
-    rows.push(row);
-    state.tables[table] = rows;
+    const own = user && state.tables.boutiques.find((b) => b.owner_user_id === user.id);
+    const allowed = service || (OWNED_TABLES.has(table) && own && body.boutique_id === own.id && own.status === "active");
+    if (!allowed) return json(res, 403, { code: "42501", message: "new row violates row-level security policy" });
+    const row = newRow(table, body);
+    state.tables[table].push(row);
     return reply([row], 201);
   }
+
+  if (req.method === "PATCH") {
+    const body = await readBody(req);
+    const targets = filterRows(visible, url.searchParams);
+    const isAdmin = user && state.tables.admins.some((a) => a.user_id === user.id && a.active);
+    if (table === "boutiques" && !service && "status" in body && targets.some((t) => t.status !== body.status)) {
+      // enforce_boutique_update_rules()
+      const role = state.tables.admins.find((a) => a.user_id === user?.id && a.active)?.role;
+      if (!isAdmin) return json(res, 400, { code: "42501", message: "Boutique owners cannot change their own account status" });
+      if (role === "viewer" || role === "billing_admin") return json(res, 400, { code: "42501", message: "Your role cannot change boutique status" });
+      if (role === "support_admin" && body.status === "disabled") return json(res, 400, { code: "42501", message: "Support admins cannot disable a boutique" });
+    }
+    for (const t of targets) Object.assign(t, body, { updated_at: new Date().toISOString() });
+    return reply(targets);
+  }
+  if (req.method === "DELETE") return json(res, 403, { code: "42501", message: "permission denied" });
   return reply([]);
+}
+
+// Minimal S3/R2 stand-in for presigned PUT/GET (R2_ENDPOINT=…/s3, path-style).
+// Like R2, a PUT whose URL carries a checksum computed over a different body
+// (the SDK's empty-body default) is rejected with BadDigest.
+const objects = new Map();
+async function handleS3(req, res, url) {
+  const key = url.pathname.slice("/s3/".length);
+  if (req.method === "PUT") {
+    const chunks = [];
+    for await (const c of req) chunks.push(c);
+    const body = Buffer.concat(chunks);
+    const crc = url.searchParams.get("x-amz-checksum-crc32");
+    if (crc && body.length > 0) {
+      res.writeHead(400, { "Content-Type": "application/xml", ...cors() });
+      return res.end("<Error><Code>BadDigest</Code><Message>The CRC32 you specified did not match the calculated checksum.</Message></Error>");
+    }
+    if (!url.searchParams.get("X-Amz-Signature")) {
+      res.writeHead(403, cors());
+      return res.end();
+    }
+    objects.set(key, { body, type: req.headers["content-type"] || "application/octet-stream" });
+    res.writeHead(200, { ETag: '"mock"', ...cors() });
+    return res.end();
+  }
+  const obj = objects.get(key);
+  if (!obj) {
+    res.writeHead(404, cors());
+    return res.end();
+  }
+  res.writeHead(200, { "Content-Type": obj.type, ...cors() });
+  return res.end(obj.body);
 }
 
 createServer(async (req, res) => {
@@ -318,7 +431,13 @@ createServer(async (req, res) => {
         const now = new Date().toISOString();
         state.tables.boutiques.push({ id: randomUUID(), status: "active", order_seq: 0, area: null, phone: null, gst_number: null, logo_file_id: null, terms_tnc_accepted: true, terms_privacy_accepted: true, terms_accepted_at: now, created_at: now, updated_at: now, ...b, owner_user_id: created[b.ownerEmail], email: b.ownerEmail });
       }
-      for (const a of body.admins ?? []) state.tables.admins.push({ id: randomUUID(), active: true, created_at: new Date().toISOString(), ...a, user_id: created[a.email] });
+      for (const a of body.admins ?? []) state.tables.admins.push({ id: randomUUID(), active: true, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...a, user_id: created[a.email] });
+      for (const c of body.customers ?? []) {
+        const b = state.tables.boutiques.find((x) => x.email === c.ownerEmail);
+        const rest = { ...c };
+        delete rest.ownerEmail;
+        state.tables.customers.push(newRow("customers", { ...rest, boutique_id: b.id }));
+      }
       return json(res, 200, created);
     }
     if (path === "/__mock/outbox") {
@@ -329,6 +448,8 @@ createServer(async (req, res) => {
       const u = state.users.get(String(url.searchParams.get("email")).toLowerCase());
       return json(res, 200, u ? { confirmed: !!u.email_confirmed_at, password: u.password } : null);
     }
+    if (path.startsWith("/s3/")) return await handleS3(req, res, url);
+    if (path === "/__mock/tables") return json(res, 200, state.tables);
     if (path.startsWith("/auth/v1")) return await handleAuth(req, res, url, path.slice("/auth/v1".length));
     if (path.startsWith("/rest/v1")) return await handleRest(req, res, url, path.slice("/rest/v1".length));
     if (path === "/") return json(res, 200, { ok: true });
