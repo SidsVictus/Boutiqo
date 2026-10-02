@@ -77,19 +77,22 @@ function Shell({ url, origin }: { url: string; origin: string }) {
     [hideSplash],
   );
 
+  // Reload the last *app* page, never the failed URL: a failure can come from
+  // a non-app page that slipped into the WebView (see onNavigationStateChange),
+  // and reload() would just retry that page. Remounting behind the loader also
+  // restarts the load timeout.
+  const reloadApp = useCallback(() => {
+    setProblem(null);
+    setHasLoaded(false);
+    setSourceUrl(lastUrlRef.current);
+    setWebKey((k) => k + 1);
+  }, []);
+
   const retry = useCallback(() => {
     devLog("retry", { url: redactUrl(lastUrlRef.current) });
     setRetrying(true);
-    if (hasLoaded) {
-      webRef.current?.reload();
-    } else {
-      // Nothing rendered yet: remount behind the loader so the load timeout
-      // starts over too.
-      setProblem(null);
-      setSourceUrl(lastUrlRef.current);
-      setWebKey((k) => k + 1);
-    }
-  }, [hasLoaded]);
+    reloadApp();
+  }, [reloadApp]);
 
   // Initial load timeout (slow network / server hanging).
   useEffect(() => {
@@ -167,12 +170,38 @@ function Shell({ url, origin }: { url: string; origin: string }) {
     [origin, openExternal],
   );
 
+  const isAppUrl = useCallback((target: string) => target === origin || target.startsWith(`${origin}/`), [origin]);
+
+  // Backstop for onShouldStartLoadWithRequest: react-native-webview lets a
+  // navigation through if JS doesn't answer within 250ms (common in Expo Go's
+  // dev mode, and on slow phones). A non-app page that starts loading anyway
+  // is stopped here and handed to Android instead.
+  const escapedUrlRef = useRef<string | null>(null);
+  const handleEscapedNavigation = useCallback(
+    (target: string) => {
+      if (escapedUrlRef.current === target) return true;
+      const decision = classifyNavigation(target, origin);
+      if (decision.kind === "internal") return false;
+      escapedUrlRef.current = target;
+      devLog("navigation-escaped", { url: redactUrl(target) });
+      webRef.current?.stopLoading();
+      if (decision.kind === "external") openExternal(decision.url);
+      return true;
+    },
+    [origin, openExternal],
+  );
+
   const onNavigationStateChange = useCallback(
     (nav: WebViewNavigation) => {
       canGoBackRef.current = nav.canGoBack;
-      if (nav.url === origin || nav.url.startsWith(`${origin}/`)) lastUrlRef.current = nav.url;
+      if (isAppUrl(nav.url)) {
+        lastUrlRef.current = nav.url;
+        escapedUrlRef.current = null;
+      } else if (nav.loading) {
+        handleEscapedNavigation(nav.url);
+      }
     },
-    [origin],
+    [isAppUrl, handleEscapedNavigation],
   );
 
   const onLoad = useCallback(() => {
@@ -192,12 +221,20 @@ function Shell({ url, origin }: { url: string; origin: string }) {
       event.preventDefault();
       const { description, code } = event.nativeEvent;
       devLog("load-error", { code, description, url: redactUrl(event.nativeEvent.url) });
+      // A non-app page failed inside the WebView: send it to Android and put
+      // the app back, rather than showing an error for a page that isn't ours.
+      if (hasLoaded && !isAppUrl(event.nativeEvent.url)) {
+        if (settleTimer.current) clearTimeout(settleTimer.current);
+        handleEscapedNavigation(event.nativeEvent.url);
+        reloadApp();
+        return;
+      }
       if (offlineRef.current || /INTERNET_DISCONNECTED|NETWORK_CHANGED/i.test(description)) fail("offline");
       else if (/TIMED_OUT/i.test(description)) fail("timeout");
       else if (/CONNECTION_REFUSED|CONNECTION_RESET|NAME_NOT_RESOLVED|ADDRESS_UNREACHABLE/i.test(description)) fail("server");
       else fail("load-failed");
     },
-    [fail],
+    [fail, hasLoaded, isAppUrl, handleEscapedNavigation, reloadApp],
   );
 
   const onHttpError = useCallback(
@@ -206,17 +243,15 @@ function Shell({ url, origin }: { url: string; origin: string }) {
       // web app's own 404) are real app UI and stay on screen.
       const { statusCode } = event.nativeEvent;
       devLog("http-error", { statusCode, url: redactUrl(event.nativeEvent.url) });
-      if (statusCode >= 500) fail("server");
+      if (statusCode >= 500 && isAppUrl(event.nativeEvent.url)) fail("server");
     },
-    [fail],
+    [fail, isAppUrl],
   );
 
   const onRenderProcessGone = useCallback(() => {
     devLog("render-process-gone");
-    setHasLoaded(false);
-    setSourceUrl(lastUrlRef.current);
-    setWebKey((k) => k + 1);
-  }, []);
+    reloadApp();
+  }, [reloadApp]);
 
   useEffect(() => () => {
     if (settleTimer.current) clearTimeout(settleTimer.current);
