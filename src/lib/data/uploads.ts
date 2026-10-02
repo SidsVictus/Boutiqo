@@ -48,10 +48,12 @@ export function uploadFileWithProgress(uploadUrl: string, file: File, onProgress
         onProgress(100);
         resolve();
       } else {
-        reject(new ApiError("upload_failed", `The upload failed (R2 responded ${xhr.status}). Check your connection and try again.`));
+        reject(new ApiError("upload_failed", `Photo storage rejected the upload (error ${xhr.status}). Try again.`));
       }
     };
-    xhr.onerror = () => reject(new ApiError("upload_failed", "The upload failed. Check your connection and try again."));
+    // A network-level failure: offline, or the storage bucket refusing this
+    // site's origin (R2 CORS must allow PUT from the app's origin, see README).
+    xhr.onerror = () => reject(new ApiError("upload_failed", "Couldn't reach photo storage. Check your connection and try again."));
     xhr.onabort = () => reject(new ApiError("upload_aborted", "The upload was cancelled."));
     xhr.send(file);
   });

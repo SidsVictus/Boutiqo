@@ -70,7 +70,16 @@ export async function POST(request: Request) {
     return apiError(403, "insert_failed", "Could not authorize the upload");
   }
 
-  const uploadUrl = await presignUploadUrl(objectKey, parsed.data.mimeType);
+  let uploadUrl: string;
+  try {
+    uploadUrl = await presignUploadUrl(objectKey, parsed.data.mimeType);
+  } catch (err) {
+    // Usually a missing/wrong R2_* setting on the server. Mark the row so it
+    // isn't left looking like an upload in progress.
+    await supabase.from("files").update({ upload_status: "failed" }).eq("id", file.id);
+    logSecurityEvent("upload_failed", { userId: user.id, stage: "presign_url", fileId: file.id, reason: err instanceof Error ? err.message : String(err) });
+    return apiError(503, "storage_unavailable", "Photo storage isn't available right now. Try again later.");
+  }
 
   return apiOk({ fileId: file.id, objectKey, uploadUrl, expiresInSeconds: 300 });
 }

@@ -77,6 +77,14 @@ describe("buildObjectKey", () => {
   });
 });
 
+describe("presigned upload URL", () => {
+  it("carries no SDK default checksum (R2 rejects a checksum computed over an empty body)", async () => {
+    const url = await presignUploadUrl("boutiques/b/orders/o/cloth/x.jpg", "image/jpeg");
+    expect(url.toLowerCase()).not.toContain("x-amz-checksum");
+    expect(url.toLowerCase()).not.toContain("x-amz-sdk-checksum-algorithm");
+  });
+});
+
 describe("presigned upload + download against a real S3-protocol server", () => {
   it("authorized upload then authorized download round-trips the exact bytes", async () => {
     const { objectKey } = buildObjectKey({ kind: "boutique_logo", boutiqueId: "b1", mimeType: "image/png" });

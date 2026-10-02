@@ -56,6 +56,13 @@ export function getR2Client(): S3Client {
     endpoint,
     credentials: { accessKeyId, secretAccessKey },
     forcePathStyle: isLocalMock, // path-style needed for local S3 mocks
+    // Since @aws-sdk/client-s3 3.729 the SDK adds a CRC32 checksum to every
+    // request by default. For a presigned PUT that checksum is computed over
+    // an *empty* body and baked into the URL (x-amz-checksum-crc32), so R2
+    // rejects the real photo the browser uploads: every cloth-photo upload
+    // failed. Only send checksums when an operation actually requires one.
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
   });
 }
 
