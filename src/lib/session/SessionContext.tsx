@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { createClient } from "@/lib/supabase/client";
+import { createImplicitClient } from "@/lib/supabase/implicit";
 import type { AdminUser, Boutique } from "@/lib/supabase/types";
 
 /**
@@ -211,10 +212,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const signUpOwner = React.useCallback(
     async (email: string, password: string): Promise<LoginResult> => {
-      const { data, error } = await supabase.auth.signUp({
+      // Implicit-flow client so the confirmation email's link works in any
+      // browser (see lib/supabase/implicit.ts); /auth/confirm completes it.
+      const { data, error } = await createImplicitClient().auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+        options: { emailRedirectTo: `${window.location.origin}/auth/confirm` },
       });
       if (error) {
         if (/already registered|already exists/i.test(error.message)) return { ok: false, code: "already_registered", message: "An account with this email already exists. Log in instead." };
@@ -231,6 +234,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       // Email confirmation required: no session until the link in the email is
       // opened; that link lands on /auth/callback, which continues to /owner/register.
       if (!data.session) return { ok: true, code: "confirm_email" };
+      // Signed in straight away (no confirmation required): move the session
+      // into the main, cookie-backed client.
+      const { error: sessionError } = await supabase.auth.setSession({ access_token: data.session.access_token, refresh_token: data.session.refresh_token });
+      if (sessionError) return { ok: false, code: "signup_failed", message: "Account created, but signing in failed. Please log in." };
       setDraftSignup({ email, userId: data.user.id });
       return { ok: true };
     },
@@ -262,8 +269,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const requestPasswordReset = React.useCallback(
     async (email: string): Promise<LoginResult> => {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/callback?next=/owner/reset-password`,
+      // Implicit-flow client so the emailed link works in whichever browser
+      // opens it, not only this one (see lib/supabase/implicit.ts).
+      const { error } = await createImplicitClient().auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/confirm?next=/owner/reset-password`,
       });
       // Don't reveal whether the address has an account; only surface errors
       // the user can act on.
@@ -275,7 +284,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       }
       return { ok: true };
     },
-    [supabase],
+    [],
   );
 
   const updatePassword = React.useCallback(

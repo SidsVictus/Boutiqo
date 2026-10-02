@@ -14,7 +14,9 @@ import { logSecurityEvent } from "@/lib/log";
  *   different browser than the one that asked for it).
  *
  * It exchanges the credential for a session cookie here, server-side, then
- * redirects to where this user belongs. Previously Google sign-in returned
+ * redirects to where this user belongs. `?established=1` (from /auth/confirm,
+ * which has already stored a session from an emailed link) skips the exchange
+ * and only does the routing; it carries no credential, so it can't sign anyone in. Previously Google sign-in returned
  * straight to /owner/register, which (with no in-memory signup draft after a
  * full-page redirect) bounced the user back to /owner/signup: the "Continue
  * with Google just reloads the page" bug.
@@ -24,7 +26,7 @@ export async function GET(request: NextRequest) {
   const origin = url.origin;
   const next = safeNextPath(url.searchParams.get("next"));
   const isRecovery = next === "/owner/reset-password" || url.searchParams.get("type") === "recovery";
-  const failPath = isRecovery ? "/owner/forgot-password?error=reset_link" : `/owner/login?error=${url.searchParams.get("code") ? "link" : "oauth"}`;
+  const failPath = isRecovery ? "/owner/forgot-password?error=reset_link" : `/owner/login?error=${url.searchParams.get("code") || url.searchParams.get("established") ? "link" : "oauth"}`;
 
   const supabase = await createSupabaseRouteClient();
 
@@ -39,6 +41,8 @@ export async function GET(request: NextRequest) {
     ({ error } = await supabase.auth.exchangeCodeForSession(code));
   } else if (tokenHash && type) {
     ({ error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type }));
+  } else if (url.searchParams.get("established") === "1") {
+    // Session already in the cookies; the getUser() check below decides.
   } else {
     error = { message: "missing_credential" };
   }

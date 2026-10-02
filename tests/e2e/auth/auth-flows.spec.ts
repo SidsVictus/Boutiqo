@@ -51,7 +51,7 @@ test.describe("Google sign-in", () => {
   test("new user: lands on registration (not back on signup), survives a reload, completes signup", async ({ page }) => {
     await page.goto("/owner/signup");
     await page.getByRole("button", { name: "Continue with Google" }).click();
-    await page.waitForURL("**/owner/register");
+    await page.waitForURL((u) => u.pathname === "/owner/register");
     await expect(page.getByRole("heading", { name: "Tell us about your boutique" })).toBeVisible();
     await expect(page.getByLabel("Owner name")).toHaveValue("Priya Sharma");
     await expect(page.getByText("Signed in as priya.google@gmail.com")).toBeVisible();
@@ -69,7 +69,7 @@ test.describe("Google sign-in", () => {
   test("from the home page too", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "Continue with Google" }).click();
-    await page.waitForURL("**/owner/register");
+    await page.waitForURL((u) => u.pathname === "/owner/register");
   });
 
   test("existing owner goes straight to the dashboard", async ({ page, request }) => {
@@ -125,7 +125,7 @@ test.describe("Google sign-in", () => {
     // …then load the web callback in the WebView, as callbackUrlFor() does.
     const code = new URL(redirect).searchParams.get("code")!;
     await page.goto(`/auth/callback?code=${encodeURIComponent(code)}`);
-    await page.waitForURL("**/owner/register");
+    await page.waitForURL((u) => u.pathname === "/owner/register");
     await expect(page.getByLabel("Owner name")).toHaveValue("Priya Sharma");
   });
 });
@@ -136,7 +136,7 @@ test.describe("Email signup", () => {
     await page.getByLabel("Email").fill("new.owner@gmail.com");
     await page.getByLabel(/^Password/).fill(PASSWORD);
     await page.getByRole("button", { name: "Create account" }).click();
-    await page.waitForURL("**/owner/register");
+    await page.waitForURL((u) => u.pathname === "/owner/register");
     await fillRegistration(page);
     await page.getByRole("button", { name: "Continue" }).click();
     await acceptTermsAndFinish(page);
@@ -154,10 +154,26 @@ test.describe("Email signup", () => {
     const mail = await lastEmail(request, "confirm.me@gmail.com");
     expect(mail.type).toBe("signup");
     await page.goto(mail.link);
-    await page.waitForURL("**/owner/register");
+    await page.waitForURL((u) => u.pathname === "/owner/register");
     await fillRegistration(page);
     await page.getByRole("button", { name: "Continue" }).click();
     await acceptTermsAndFinish(page);
+  });
+
+  test("confirmation link opened in a different browser still continues to registration", async ({ page, browser, request }) => {
+    await mock(request, "config", { confirmEmail: true });
+    await page.goto("/owner/signup");
+    await page.getByLabel("Email").fill("other.device@gmail.com");
+    await page.getByLabel(/^Password/).fill(PASSWORD);
+    await page.getByRole("button", { name: "Create account" }).click();
+    await expect(page.getByRole("heading", { name: "Check your email" })).toBeVisible();
+    const mail = await lastEmail(request, "other.device@gmail.com");
+    const other = await browser.newContext({ baseURL: "http://localhost:3210" });
+    const phone = await other.newPage();
+    await phone.goto(mail.link);
+    await phone.waitForURL((u) => u.pathname === "/owner/register");
+    await expect(phone.getByText("Signed in as other.device@gmail.com")).toBeVisible();
+    await other.close();
   });
 
   test("validates email and password length before calling Supabase", async ({ page }) => {
@@ -192,7 +208,7 @@ test.describe("Email signup", () => {
     await page.getByLabel("Email").fill("gst@gmail.com");
     await page.getByLabel(/^Password/).fill(PASSWORD);
     await page.getByRole("button", { name: "Create account" }).click();
-    await page.waitForURL("**/owner/register");
+    await page.waitForURL((u) => u.pathname === "/owner/register");
     await page.getByRole("button", { name: "Continue" }).click();
     await expect(page.getByText("Boutique name is required")).toBeVisible();
 
@@ -241,7 +257,7 @@ test.describe("Log in", () => {
     await page.getByLabel("Email").fill("halfway@gmail.com");
     await page.getByLabel(/^Password/).fill(PASSWORD);
     await page.getByRole("button", { name: "Log in" }).click();
-    await page.waitForURL("**/owner/register");
+    await page.waitForURL((u) => u.pathname === "/owner/register");
     await expect(page.getByText("Signed in as halfway@gmail.com")).toBeVisible();
   });
 
@@ -296,7 +312,7 @@ test.describe("Forgot / reset password", () => {
     const mail = await lastEmail(request, "forgetful@gmail.com");
     expect(mail.type).toBe("recovery");
     await page.goto(mail.link);
-    await page.waitForURL("**/owner/reset-password");
+    await page.waitForURL((u) => u.pathname === "/owner/reset-password");
     await expect(page.getByRole("heading", { name: "Set a new password" })).toBeVisible();
 
     await page.getByLabel(/^New password/).fill("short");
@@ -330,6 +346,34 @@ test.describe("Forgot / reset password", () => {
     await page.waitForURL("**/owner/dashboard");
   });
 
+  test("default reset email link works in a different browser than the one that asked (the reported bug)", async ({ page, browser, request }) => {
+    await seedOwner(request, "forgetful@gmail.com");
+    await page.goto("/owner/forgot-password");
+    await page.getByLabel("Email").fill("forgetful@gmail.com");
+    await page.getByRole("button", { name: "Send reset link" }).click();
+    await expect(page.getByRole("heading", { name: "Check your email" })).toBeVisible();
+    const mail = await lastEmail(request, "forgetful@gmail.com");
+
+    // E.g. asked from the Android app, then opened from Gmail in Chrome: none of the first browser's cookies.
+    const other = await browser.newContext({ baseURL: "http://localhost:3210" });
+    const phone = await other.newPage();
+    await phone.goto(mail.link);
+    await phone.waitForURL((u) => u.pathname === "/owner/reset-password");
+    expect(phone.url()).not.toContain("access_token"); // tokens are stripped from the address bar
+    await phone.getByLabel(/^New password/).fill("from-gmail-pass-1");
+    await phone.getByLabel("Confirm new password").fill("from-gmail-pass-1");
+    await phone.getByRole("button", { name: "Save new password" }).click();
+    await expect(phone.getByRole("heading", { name: "Password updated" })).toBeVisible();
+    await other.close();
+
+    // And the new password works for logging in.
+    await page.goto("/owner/login");
+    await page.getByLabel("Email").fill("forgetful@gmail.com");
+    await page.getByLabel(/^Password/).fill("from-gmail-pass-1");
+    await page.getByRole("button", { name: "Log in" }).click();
+    await page.waitForURL("**/owner/dashboard");
+  });
+
   test("token_hash reset link (recommended email template) works on a different device", async ({ page, browser, request }) => {
     await seedOwner(request, "forgetful@gmail.com");
     await page.goto("/owner/forgot-password");
@@ -343,7 +387,7 @@ test.describe("Forgot / reset password", () => {
     const other = await browser.newContext({ baseURL: "http://localhost:3210" });
     const phone = await other.newPage();
     await phone.goto(`/auth/callback?token_hash=${tokenHash}&type=recovery&next=/owner/reset-password`);
-    await phone.waitForURL("**/owner/reset-password");
+    await phone.waitForURL((u) => u.pathname === "/owner/reset-password");
     await phone.getByLabel(/^New password/).fill("another-pass-77");
     await phone.getByLabel("Confirm new password").fill("another-pass-77");
     await phone.getByRole("button", { name: "Save new password" }).click();
@@ -365,7 +409,7 @@ test.describe("Forgot / reset password", () => {
     await page.getByRole("button", { name: "Send reset link" }).click();
     const mail = await lastEmail(request, "forgetful@gmail.com");
     await page.goto(mail.link);
-    await page.waitForURL("**/owner/reset-password");
+    await page.waitForURL((u) => u.pathname === "/owner/reset-password");
     await page.goto("/owner/signout");
     await page.goto(mail.link); // second use
     await page.waitForURL("**/owner/forgot-password?error=reset_link");

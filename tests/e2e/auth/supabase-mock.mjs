@@ -193,14 +193,31 @@ async function handleAuth(req, res, url, path) {
   if (path === "/verify" && req.method === "GET") {
     const entry = state.emailTokens.get(q.get("token"));
     const redirectTo = q.get("redirect_to");
+    // Like GoTrue: errors and implicit-flow sessions go in the URL fragment;
+    // PKCE requests (made with a code_challenge) get ?code= instead.
+    const withFragment = (url, params) => `${url.split("#")[0]}#${new URLSearchParams(params)}`;
     if (!entry || !redirectTo) {
-      res.writeHead(303, { Location: withParams(redirectTo || "http://localhost/", { error: "access_denied", error_code: "otp_expired" }) });
+      res.writeHead(303, { Location: withFragment(redirectTo || "http://localhost/", { error: "access_denied", error_code: "otp_expired", error_description: "Email link is invalid or has expired" }) });
       return res.end();
     }
     state.emailTokens.delete(q.get("token"));
     const user = userById(entry.userId);
     if (entry.type === "signup") user.email_confirmed_at = user.confirmed_at = new Date().toISOString();
-    res.writeHead(303, { Location: withParams(redirectTo, { code: newCode(user.id, entry.challenge) }) });
+    if (entry.challenge) {
+      res.writeHead(303, { Location: withParams(redirectTo, { code: newCode(user.id, entry.challenge) }) });
+    } else {
+      const session = issueSession(user);
+      res.writeHead(303, {
+        Location: withFragment(redirectTo, {
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+          expires_in: String(session.expires_in),
+          expires_at: String(session.expires_at),
+          token_type: "bearer",
+          type: entry.type,
+        }),
+      });
+    }
     return res.end();
   }
 
