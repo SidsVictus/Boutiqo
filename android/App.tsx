@@ -159,13 +159,15 @@ function Shell({ url, origin }: { url: string; origin: string }) {
     [origin, openExternal],
   );
 
-  // target="_blank" / window.open: app pages open in place, everything else leaves the app.
+  // target="_blank" / window.open means "keep this page": loading the target in
+  // place would throw away unsaved state (e.g. the signup form linking to
+  // /terms), so new-window links, app pages included, open in the browser.
   const onOpenWindow = useCallback(
     (event: WebViewOpenWindowEvent) => {
       const target = event.nativeEvent.targetUrl;
       const decision = classifyNavigation(target, origin);
-      if (decision.kind === "internal") webRef.current?.injectJavaScript(`window.location.assign(${JSON.stringify(target)});true;`);
-      else if (decision.kind === "external") openExternal(decision.url);
+      if (decision.kind === "external") openExternal(decision.url);
+      else if (decision.kind === "internal" && /^https?:/i.test(target)) openExternal(target);
     },
     [origin, openExternal],
   );
