@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ds/Button";
 import { Input } from "@/components/ds/Input";
 import { Logo } from "@/components/app/Logo";
+import { PasswordInput } from "@/components/app/PasswordInput";
 import { useSession } from "@/lib/session/SessionContext";
 
 export default function AdminLoginPage() {
@@ -49,11 +50,14 @@ export default function AdminLoginPage() {
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <Input label="Email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-          <Input label="Password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} error={error ?? undefined} />
+          <PasswordInput label="Password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} error={error ?? undefined} />
           <Button type="submit" block disabled={loading}>
             {loading ? "Logging in…" : "Log in"}
           </Button>
         </form>
+        <p style={{ marginTop: 18, fontSize: 14 }}>
+          <a href="/owner/forgot-password">Forgot password?</a>
+        </p>
       </div>
     </main>
   );

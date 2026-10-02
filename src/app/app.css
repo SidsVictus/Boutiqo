@@ -776,3 +776,37 @@
     padding: 40px 48px;
   }
 }
+
+/* Password show/hide toggle inside .bq-input__affix (which is pointer-events:none). */
+.bq-input__toggle {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin-right: -10px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.bq-input__toggle:hover {
+  color: var(--text-strong);
+}
+.bq-input__toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* Inline text-style button (e.g. "Send again"). */
+.bq-link-button {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--text-link);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
