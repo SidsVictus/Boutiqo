@@ -80,7 +80,7 @@ export default function ResetPasswordPage() {
         <Button as="a" href="/owner/forgot-password" block>
           Request a new link
         </Button>
-        <p style={{ marginTop: 18, fontSize: 14 }}>
+        <p style={{ marginTop: 18, fontSize: 16 }}>
           <Link href="/owner/login">Back to log in</Link>
         </p>
       </>

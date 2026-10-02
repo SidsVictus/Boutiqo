@@ -39,7 +39,7 @@ export function GoogleButton({ variant = "secondary" }: { variant?: "secondary" 
               borderRadius: "999px",
               background: "var(--surface-blush)",
               color: "var(--text-strong)",
-              fontSize: 13,
+              fontSize: 15,
               fontWeight: 700,
             }}
           >

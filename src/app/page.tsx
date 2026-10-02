@@ -34,7 +34,7 @@ export default function Home() {
           </div>
         ) : null}
         <GoogleButton />
-        <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "22px 0 18px", color: "var(--text-faint)", fontSize: 12, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "22px 0 18px", color: "var(--text-faint)", fontSize: 14, letterSpacing: "0.06em", textTransform: "uppercase" }}>
           <hr style={{ flex: 1, border: 0, borderTop: "1px solid var(--line-hairline)" }} />
           Already set up
           <hr style={{ flex: 1, border: 0, borderTop: "1px solid var(--line-hairline)" }} />
@@ -42,8 +42,8 @@ export default function Home() {
         <Button as="a" href="/owner/login" variant="ghost" block>
           Sign in to an existing boutique
         </Button>
-        <p style={{ marginTop: 18, fontSize: 13, color: "var(--text-muted)" }}>Each boutique sees only its own customers and orders.</p>
-        <p style={{ marginTop: 12, fontSize: 13, color: "var(--text-muted)", display: "flex", gap: 16 }}>
+        <p style={{ marginTop: 18, fontSize: 15, color: "var(--text-muted)" }}>Each boutique sees only its own customers and orders.</p>
+        <p style={{ marginTop: 12, fontSize: 15, color: "var(--text-muted)", display: "flex", gap: 16 }}>
           <Link href="/privacy">Privacy Policy</Link>
           <Link href="/terms">Terms &amp; Conditions</Link>
         </p>

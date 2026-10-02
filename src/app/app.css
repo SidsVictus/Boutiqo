@@ -26,17 +26,21 @@
   flex-direction: column;
   min-height: 100dvh;
 }
-.bq-appbar {
+.bq-mobile-top {
   position: sticky;
   top: 0;
   z-index: 20;
+  padding-top: env(safe-area-inset-top);
+  background: var(--surface-card);
+  border-bottom: 1px solid var(--line-hairline);
+}
+.bq-appbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  padding: calc(14px + env(safe-area-inset-top)) var(--space-4) 14px;
+  padding: 10px var(--space-4) 12px;
   background: var(--surface-page);
-  border-bottom: 1px solid var(--line-hairline);
 }
 .bq-appbar__title {
   font-family: var(--font-display);
@@ -48,26 +52,24 @@
 }
 .bq-shell-mobile__content {
   flex: 1;
-  padding: 16px 16px calc(96px + env(safe-area-inset-bottom));
+  padding: 16px 16px calc(32px + env(safe-area-inset-bottom));
 }
 .bq-tabbar {
-  position: sticky;
-  bottom: 0;
-  z-index: 20;
   display: flex;
-  height: calc(52px + env(safe-area-inset-bottom));
-  padding-bottom: env(safe-area-inset-bottom);
+  height: 60px;
   background: var(--surface-card);
-  border-top: 1px solid var(--line-hairline);
+  border-bottom: 1px solid var(--line-hairline);
 }
 .bq-tabbar__item {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  font-size: 11px;
+  gap: 3px;
+  font-size: 12px; /* six tabs share a 360px-wide phone */
+  font-weight: var(--fw-semibold);
   color: var(--text-muted);
   background: transparent;
   border: 0;
@@ -75,17 +77,29 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-decoration: none;
 }
 .bq-tabbar__item[aria-current="page"] {
   color: var(--plum-700);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-bold);
+}
+/* Active tab: a bar along the bottom edge, like Android top tabs. */
+.bq-tabbar__item[aria-current="page"]::after {
+  content: "";
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  bottom: 0;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: var(--action-accent);
 }
 .bq-tabbar__item--new {
-  color: #fff;
+  color: var(--signal-600);
 }
 .bq-tabbar__item--new .bq-tabbar__new-disc {
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   border-radius: var(--radius-pill);
   background: var(--action-accent);
   display: flex;
@@ -432,17 +446,146 @@
   color: var(--text-strong);
   box-shadow: var(--shadow-xs);
 }
-.bq-voice-disc {
-  width: 72px;
-  height: 72px;
+/* Voice input panel: the mic pulses with expanding rings and the label shows
+   animated level bars while listening, so it's obvious it's recording. */
+.bq-voice-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 20px 16px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-blush);
+}
+.bq-voice-mic {
+  position: relative;
+  width: 76px;
+  height: 76px;
   border-radius: var(--radius-pill);
-  background: var(--signal-500);
+  border: 0;
+  background: var(--plum-700);
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 24px auto 12px;
-  box-shadow: 0 0 0 10px rgba(255, 37, 76, 0.16);
+  cursor: pointer;
+  margin-bottom: 6px;
+  transition: background var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
+}
+.bq-voice-mic:active {
+  transform: scale(0.96);
+}
+.bq-voice-mic[data-listening="true"] {
+  background: var(--signal-500);
+  animation: bq-voice-breathe 1.4s ease-in-out infinite;
+}
+.bq-voice-mic > svg {
+  position: relative;
+  z-index: 1;
+}
+.bq-voice-mic__ring {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-pill);
+  background: var(--signal-500);
+  opacity: 0.45;
+  animation: bq-voice-ring 1.6s ease-out infinite;
+}
+.bq-voice-mic__ring--2 {
+  animation-delay: 0.8s;
+}
+@keyframes bq-voice-ring {
+  from {
+    transform: scale(1);
+    opacity: 0.45;
+  }
+  to {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+@keyframes bq-voice-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+}
+.bq-voice-panel__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: var(--fw-bold);
+  font-size: var(--fs-lg);
+  color: var(--text-strong);
+}
+.bq-voice-bars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 18px;
+}
+.bq-voice-bars > span {
+  width: 4px;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--signal-500);
+  animation: bq-voice-bar 0.9s ease-in-out infinite;
+  transform-origin: bottom;
+}
+.bq-voice-bars > span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.bq-voice-bars > span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+.bq-voice-bars > span:nth-child(4) {
+  animation-delay: 0.45s;
+}
+@keyframes bq-voice-bar {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+.bq-voice-panel__hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  max-width: 360px;
+}
+.bq-voice-panel__heard {
+  margin: 4px 0 0;
+  font-style: italic;
+  color: var(--text-body);
+}
+.bq-voice-panel__captured {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+.bq-voice-panel__captured li {
+  background: var(--surface-card);
+  border-radius: var(--radius-pill);
+  padding: 4px 12px;
+  font-size: var(--fs-sm);
+}
+@media (prefers-reduced-motion: reduce) {
+  .bq-voice-mic[data-listening="true"],
+  .bq-voice-mic__ring,
+  .bq-voice-bars > span {
+    animation: none;
+  }
 }
 
 /* ---------- Calendar (Boutiqo's own 3-colour thermal scale — see
@@ -490,7 +633,7 @@
 .bq-calendar-cell__day {
   font-family: var(--font-mono);
   font-weight: var(--fw-bold);
-  font-size: 15px;
+  font-size: 17px;
 }
 .bq-calendar-cell__count {
   font-size: var(--fs-3xs);
@@ -602,7 +745,7 @@
   display: none;
 }
 .bq-track-progress__label {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--text-muted);
   text-align: center;
 }
@@ -692,8 +835,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border-radius: var(--radius-control);
   background: transparent;
   border: 0;
@@ -738,14 +881,14 @@
   margin: 0 0 4px;
 }
 .bq-legal__card h2 {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
   color: var(--text-strong);
   margin: 28px 0 8px;
 }
 .bq-legal__card p,
 .bq-legal__card li {
-  font-size: 15px;
+  font-size: 17px;
 }
 .bq-legal__card ul {
   padding-left: 20px;
@@ -759,7 +902,7 @@
 }
 .bq-legal__meta {
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: 15px;
   margin-bottom: 20px;
 }
 .bq-legal__nav {
@@ -769,7 +912,7 @@
   margin-top: 32px;
   padding-top: 16px;
   border-top: 1px solid var(--line-hairline);
-  font-size: 14px;
+  font-size: 16px;
 }
 @media (min-width: 768px) {
   .bq-legal__card {

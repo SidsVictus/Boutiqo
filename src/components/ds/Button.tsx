@@ -14,6 +14,9 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   iconRight?: React.ReactNode;
   as?: "button" | "a";
   href?: string;
+  /** Link-only (as="a"), e.g. target="_blank" for WhatsApp. */
+  target?: string;
+  rel?: string;
 }
 
 const VARIANT_CLASS: Record<string, string> = {
@@ -59,6 +62,18 @@ export function Button({
   // Internal navigation must go through next/link for client-side routing —
   // a bare <a href> triggers a full page reload, which would wipe Phase 2's
   // in-memory mock session/state on every navigation.
+  // A disabled link must not navigate (the `disabled` attribute means nothing
+  // on <a>), so render it as a real disabled button instead.
+  if (as === "a" && (rest as { disabled?: boolean }).disabled) {
+    const { href: _href, disabled: _disabled, ...buttonRest } = rest as React.AnchorHTMLAttributes<HTMLAnchorElement> & { disabled?: boolean };
+    void _href;
+    void _disabled;
+    return (
+      <button type="button" className={cls} disabled aria-disabled="true" title={buttonRest.title}>
+        {content}
+      </button>
+    );
+  }
   if (as === "a" && rest.href) {
     const { href, ...anchorRest } = rest as React.AnchorHTMLAttributes<HTMLAnchorElement>;
     return (

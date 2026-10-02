@@ -119,13 +119,13 @@ export default function OwnerSignupPage() {
             {loading ? "Creating account…" : "Create account"}
           </Button>
         </form>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "18px 0", color: "var(--text-faint)", fontSize: 13 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "18px 0", color: "var(--text-faint)", fontSize: 15 }}>
           <hr style={{ flex: 1, border: 0, borderTop: "1px solid var(--line-hairline)" }} />
           or
           <hr style={{ flex: 1, border: 0, borderTop: "1px solid var(--line-hairline)" }} />
         </div>
         <GoogleButton />
-        <p style={{ marginTop: 18, fontSize: 14 }}>
+        <p style={{ marginTop: 18, fontSize: 16 }}>
           Already have an account? <Link href="/owner/login">Log in</Link>
         </p>
       </div>

@@ -26,7 +26,7 @@ export interface AppShellProps {
   headerAction?: React.ReactNode;
   showBack?: boolean;
   signOutHref: string;
-  /** Mobile-only 5th tab bar item ("+", signal red) — owner app only. */
+  /** Mobile-only extra tab item ("+", signal red) — owner app only. */
   mobileNewHref?: string;
   children: React.ReactNode;
 }
@@ -37,6 +37,7 @@ function isActive(item: NavItem, path: string) {
 }
 
 export function AppShell({
+  role,
   navItems,
   currentPath,
   accountName,
@@ -53,39 +54,51 @@ export function AppShell({
 
   return (
     <div className="bq-app-frame">
-      {/* ---------- Mobile (below 1024px) ---------- */}
+      {/* ---------- Mobile (below 1024px) ----------
+          Tabs sit at the very top (just under the status bar), with the page
+          title row beneath. A bottom tab bar floated above Android's own
+          navigation bar with a gap under it, and was easy to mistake for it. */}
       <div className="bq-shell-mobile">
-        <header className="bq-appbar">
-          {showBack ? (
-            <button className="bq-back-btn" aria-label="Back" onClick={() => router.back()}>
-              <ChevronLeft size={20} />
-            </button>
-          ) : (
-            <span style={{ width: 32 }} />
-          )}
-          <span className="bq-appbar__title">{title}</span>
-          <span style={{ width: 32 }} />
-        </header>
-        <main className="bq-shell-mobile__content">{children}</main>
-        <nav className="bq-tabbar">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <Link key={item.href} href={item.href} className="bq-tabbar__item" aria-current={isActive(item, currentPath) ? "page" : undefined}>
-                <Icon size={20} />
-                {item.label}
+        <header className="bq-mobile-top">
+          <nav className="bq-tabbar" aria-label="Main">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link key={item.href} href={item.href} className="bq-tabbar__item" aria-current={isActive(item, currentPath) ? "page" : undefined}>
+                  <Icon size={20} />
+                  {item.label}
+                </Link>
+              );
+            })}
+            {mobileNewHref ? (
+              <Link href={mobileNewHref} className="bq-tabbar__item bq-tabbar__item--new" aria-label="New order">
+                <span className="bq-tabbar__new-disc">
+                  <Plus size={18} />
+                </span>
+                New
               </Link>
-            );
-          })}
-          {mobileNewHref ? (
-            <Link href={mobileNewHref} className="bq-tabbar__item bq-tabbar__item--new" aria-label="New order">
-              <span className="bq-tabbar__new-disc">
-                <Plus size={18} />
-              </span>
-              New
+            ) : null}
+          </nav>
+          <div className="bq-appbar">
+            {showBack ? (
+              <button className="bq-back-btn" aria-label="Back" onClick={() => router.back()}>
+                <ChevronLeft size={20} />
+              </button>
+            ) : (
+              <span style={{ width: 36 }} />
+            )}
+            <span className="bq-appbar__title">{title}</span>
+            <Link href={signOutHref} className="bq-back-btn" aria-label="Sign out" title="Sign out">
+              <LogOut size={18} />
             </Link>
-          ) : null}
-        </nav>
+          </div>
+        </header>
+        <main className="bq-shell-mobile__content">
+          {/* The owner's header action (New order) is the + tab on mobile;
+              the admin's (Add boutique) has nowhere else to live. */}
+          {role === "admin" && headerAction ? <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>{headerAction}</div> : null}
+          {children}
+        </main>
       </div>
 
       {/* ---------- Web (at/above 1024px) ---------- */}

@@ -51,7 +51,7 @@ export default function AdminRolesPage() {
                 {a.name}
                 {isSelf ? <span style={{ fontWeight: 400, color: "var(--text-muted)" }}> · you</span> : null}
               </div>
-              <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
+              <div style={{ fontSize: 15, color: "var(--text-muted)" }}>
                 {a.role.replace("_", " ")} · {ADMIN_ROLE_SCOPE[a.role]}
               </div>
             </div>

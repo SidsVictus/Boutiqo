@@ -103,3 +103,34 @@ export async function setBoutiqueStatus(boutiqueId: string, status: BoutiqueStat
     body: JSON.stringify({ status }),
   });
 }
+
+export interface BoutiqueDetailsInput {
+  name: string;
+  area?: string;
+  ownerName: string;
+  phone?: string;
+  gstNumber?: string;
+  category: string;
+}
+
+/** Owner edits their own boutique's details (Settings). RLS (boutiques_update)
+ * limits this to the caller's own row; the enforce_boutique_update_rules
+ * trigger blocks status/ownership changes. Email comes from the auth account
+ * and isn't editable here. */
+export async function updateBoutiqueDetails(boutiqueId: string, input: BoutiqueDetailsInput): Promise<Boutique> {
+  const { data, error } = await db()
+    .from("boutiques")
+    .update({
+      name: input.name,
+      area: input.area || null,
+      owner_name: input.ownerName,
+      phone: input.phone || null,
+      gst_number: input.gstNumber || null,
+      category: input.category,
+    })
+    .eq("id", boutiqueId)
+    .select()
+    .single();
+  if (error || !data) throw new ApiError("update_failed", "Couldn't save your changes. Try again.");
+  return data as Boutique;
+}

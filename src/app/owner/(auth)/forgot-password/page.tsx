@@ -57,7 +57,7 @@ export default function ForgotPasswordPage() {
             <Button as="a" href="/owner/login" block>
               Back to log in
             </Button>
-            <p style={{ marginTop: 14, fontSize: 14 }}>
+            <p style={{ marginTop: 14, fontSize: 16 }}>
               Didn&apos;t get it?{" "}
               <button type="button" className="bq-link-button" onClick={() => setSentTo(null)}>
                 Send again
@@ -79,7 +79,7 @@ export default function ForgotPasswordPage() {
                 {loading ? "Sending…" : "Send reset link"}
               </Button>
             </form>
-            <p style={{ marginTop: 18, fontSize: 14 }}>
+            <p style={{ marginTop: 18, fontSize: 16 }}>
               Remembered it? <Link href="/owner/login">Log in</Link>
             </p>
           </>

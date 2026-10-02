@@ -55,7 +55,7 @@ export default function AdminLoginPage() {
             {loading ? "Logging in…" : "Log in"}
           </Button>
         </form>
-        <p style={{ marginTop: 18, fontSize: 14 }}>
+        <p style={{ marginTop: 18, fontSize: 16 }}>
           <a href="/owner/forgot-password">Forgot password?</a>
         </p>
       </div>

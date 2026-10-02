@@ -37,7 +37,7 @@ export default function CustomerDetailPage() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <Card title={customer.name} meta={customer.address || "No address on file"}>
-        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 8, fontSize: 14 }}>
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 8, fontSize: 16 }}>
           {customer.phone ? (
             <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <Phone size={14} /> {customer.phone}

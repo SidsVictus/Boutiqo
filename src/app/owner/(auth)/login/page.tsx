@@ -64,14 +64,14 @@ export default function OwnerLoginPage() {
         <form onSubmit={handleSubmit} noValidate style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <Input label="Email" type="email" required autoComplete="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} />
           <PasswordInput label="Password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} error={error ?? undefined} />
-          <div style={{ marginTop: -6, textAlign: "right", fontSize: 14 }}>
+          <div style={{ marginTop: -6, textAlign: "right", fontSize: 16 }}>
             <Link href="/owner/forgot-password">Forgot password?</Link>
           </div>
           <Button type="submit" block disabled={loading}>
             {loading ? "Logging in…" : "Log in"}
           </Button>
         </form>
-        <p style={{ marginTop: 18, fontSize: 14 }}>
+        <p style={{ marginTop: 18, fontSize: 16 }}>
           New here? <Link href="/owner/signup">Create an account</Link>
         </p>
       </div>

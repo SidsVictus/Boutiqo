@@ -127,7 +127,7 @@ export function ClothPhotoUpload({
             <div className="bq-upload__progress-track">
               <div className="bq-upload__progress-fill" style={{ width: `${state.pct}%` }} />
             </div>
-            <span style={{ color: "#fff", fontSize: 13 }} className="bq-num">
+            <span style={{ color: "#fff", fontSize: 15 }} className="bq-num">
               Uploading… {state.pct}%
             </span>
           </div>
@@ -144,7 +144,7 @@ export function ClothPhotoUpload({
         )}
         {state.kind === "failed" && (
           <div style={{ position: "absolute", inset: 0, background: "rgba(43,4,17,.6)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, padding: 16 }}>
-            <span style={{ color: "#fff", fontSize: 13, textAlign: "center" }}>{state.reason}</span>
+            <span style={{ color: "#fff", fontSize: 15, textAlign: "center" }}>{state.reason}</span>
             <Button variant="secondary" size="sm" onClick={retry}>
               Retry upload
             </Button>

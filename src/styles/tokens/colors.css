@@ -21,8 +21,8 @@
 /* ── Semantic: text ─────────────────────────────────────────────────── */
 --text-strong:var(--plum-700);
 --text-body:var(--n-700);
---text-muted:var(--n-500);
---text-faint:var(--n-400);
+--text-muted:var(--n-600);
+--text-faint:var(--n-500);
 --text-inverse:var(--blush-50);
 --text-accent:var(--signal-600);
 --text-link:var(--plum-600);
