@@ -31,14 +31,29 @@ export function parseOAuthRequest(data: string, senderUrl: string, appOrigin: st
   if (!message || typeof message !== "object") return null;
   const { type, url } = message as { type?: unknown; url?: unknown };
   if (type !== OAUTH_MESSAGE_TYPE || typeof url !== "string") return null;
+  return isSupabaseAuthorizeUrl(url) ? url : null;
+}
+
+/** Supabase Auth's OAuth start endpoint (…/auth/v1/authorize), over HTTPS only. */
+export function isSupabaseAuthorizeUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
-    // Supabase Auth's OAuth start endpoint, over HTTPS only.
-    if (parsed.protocol !== "https:" || !parsed.pathname.endsWith("/auth/v1/authorize")) return null;
-    return parsed.toString();
+    return parsed.protocol === "https:" && parsed.pathname.endsWith("/auth/v1/authorize");
   } catch {
-    return null;
+    return false;
   }
+}
+
+/**
+ * The shell, not the web page, decides where Supabase sends the user back to:
+ * its own URL, so the sign-in tab always returns to the app. The PKCE
+ * challenge in the URL is untouched, so the code still only works with the
+ * verifier cookie in the app's WebView.
+ */
+export function withAppRedirect(authorizeUrl: string, appRedirectUrl: string): string {
+  const url = new URL(authorizeUrl);
+  url.searchParams.set("redirect_to", appRedirectUrl);
+  return url.toString();
 }
 
 /**

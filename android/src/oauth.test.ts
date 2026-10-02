@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { bridgeScript, callbackUrlFor, parseOAuthRequest } from "./oauth.ts";
+import { bridgeScript, callbackUrlFor, isSupabaseAuthorizeUrl, parseOAuthRequest, withAppRedirect } from "./oauth.ts";
 
 const APP = "https://boutiqoo.netlify.app";
 const AUTHORIZE = "https://abc.supabase.co/auth/v1/authorize?provider=google&redirect_to=boutiqo%3A%2F%2Fauth-callback&code_challenge=x";
@@ -33,4 +33,15 @@ test("hands the code to the web callback, errors to the login page", () => {
 
 test("bridge script exposes the redirect URL as a safely quoted literal", () => {
   assert.equal(bridgeScript('boutiqo://x"; alert(1); "'), 'window.BoutiqoShell = Object.freeze({ oauthRedirectUrl: "boutiqo://x\\"; alert(1); \\"" }); true;');
+});
+
+test("recognises the Supabase authorize URL and points its redirect at the app", () => {
+  assert.equal(isSupabaseAuthorizeUrl(AUTHORIZE), true);
+  assert.equal(isSupabaseAuthorizeUrl("https://abc.supabase.co/auth/v1/token"), false);
+  assert.equal(isSupabaseAuthorizeUrl("https://accounts.google.com/o/oauth2/auth"), false);
+  const webRedirect = "https://abc.supabase.co/auth/v1/authorize?provider=google&redirect_to=https%3A%2F%2Fboutiqoo.netlify.app%2Fauth%2Fcallback&code_challenge=x&code_challenge_method=s256";
+  const rewritten = new URL(withAppRedirect(webRedirect, "exp://192.168.1.2:8081/--/auth-callback"));
+  assert.equal(rewritten.searchParams.get("redirect_to"), "exp://192.168.1.2:8081/--/auth-callback");
+  assert.equal(rewritten.searchParams.get("code_challenge"), "x");
+  assert.equal(rewritten.searchParams.get("provider"), "google");
 });

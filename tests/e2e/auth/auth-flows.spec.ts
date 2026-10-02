@@ -98,6 +98,23 @@ test.describe("Google sign-in", () => {
     await expect(alertBox(page)).toContainText("disabled");
   });
 
+  test("Android app is recognised by its bridge + user agent even without the injected object", async ({ browser }) => {
+    const ctx = await browser.newContext({ baseURL: "http://localhost:3210", userAgent: "Mozilla/5.0 (Linux; Android 14) Chrome/130 Mobile Safari/537.36 BoutiqoAndroid/1.0.0" });
+    const page = await ctx.newPage();
+    await page.addInitScript(() => {
+      const sent: string[] = [];
+      (window as unknown as { __sent: string[] }).__sent = sent;
+      (window as unknown as { ReactNativeWebView: unknown }).ReactNativeWebView = { postMessage: (m: string) => sent.push(m) };
+    });
+    await page.goto("/owner/signup");
+    await page.getByRole("button", { name: "Continue with Google" }).click();
+    await expect.poll(() => page.evaluate(() => (window as unknown as { __sent: string[] }).__sent.length)).toBe(1);
+    expect(new URL(page.url()).pathname).toBe("/owner/signup"); // did not navigate to Google itself
+    const message = JSON.parse(await page.evaluate(() => (window as unknown as { __sent: string[] }).__sent[0]));
+    expect(new URL(message.url).pathname).toBe("/auth/v1/authorize");
+    await ctx.close();
+  });
+
   test("Android app: hands the sign-in URL to the shell and completes from its redirect", async ({ page }) => {
     // What android/App.tsx injects before each page load, plus a stand-in for
     // the native postMessage bridge that records what the page sends.

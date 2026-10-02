@@ -249,11 +249,16 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     // so hand the authorize URL to the shell, which opens it in a secure
     // browser tab and brings the result back to /auth/callback in this same
     // WebView (where the PKCE verifier cookie lives). See android/App.tsx.
+    // The app is recognised by its native message bridge plus either the
+    // injected BoutiqoShell object or its user-agent tag: the injected object
+    // alone can arrive late, and missing the app sent sign-in to full Chrome.
     const shell = window.BoutiqoShell;
-    if (shell?.oauthRedirectUrl && window.ReactNativeWebView) {
+    const inApp = !!window.ReactNativeWebView && (!!shell?.oauthRedirectUrl || /BoutiqoAndroid\//.test(navigator.userAgent));
+    if (inApp && window.ReactNativeWebView) {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo: shell.oauthRedirectUrl, skipBrowserRedirect: true },
+        // The shell replaces this with its own return URL either way.
+        options: { redirectTo: shell?.oauthRedirectUrl ?? `${window.location.origin}/auth/callback`, skipBrowserRedirect: true },
       });
       if (error || !data.url) return { ok: false, code: "oauth_failed", message: "Google sign-in isn't available right now. Please try again." };
       window.ReactNativeWebView.postMessage(JSON.stringify({ type: "boutiqo:oauth", url: data.url }));

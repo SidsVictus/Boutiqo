@@ -12,7 +12,7 @@ import appJson from "./app.json";
 import { INITIAL_LOAD_TIMEOUT_MS, resolveWebAppConfig } from "./src/config";
 import { devLog } from "./src/log";
 import { classifyNavigation, redactUrl } from "./src/navigation";
-import { bridgeScript, callbackUrlFor, parseOAuthRequest } from "./src/oauth";
+import { bridgeScript, callbackUrlFor, isSupabaseAuthorizeUrl, parseOAuthRequest, withAppRedirect } from "./src/oauth";
 import { StatusScreen, type ShellProblem } from "./src/StatusScreen";
 import { colors } from "./src/theme";
 
@@ -156,16 +156,47 @@ function Shell({ url, origin }: { url: string; origin: string }) {
     Linking.openURL(target).catch(() => devLog("open-external-failed", { url: redactUrl(target) }));
   }, []);
 
+  // Google sign-in always runs in a secure browser tab (Google blocks it in
+  // WebViews) and always returns to the app: whatever redirect the page asked
+  // for is replaced with the app's own. Never full Chrome, where the user
+  // would end up signed in on the website instead of in the app.
+  const oauthInFlight = useRef(false);
+  const startOAuth = useCallback(
+    (authorizeUrl: string) => {
+      if (oauthInFlight.current) return;
+      oauthInFlight.current = true;
+      devLog("oauth-start", { redirect: OAUTH_REDIRECT_URL });
+      WebBrowser.openAuthSessionAsync(withAppRedirect(authorizeUrl, OAUTH_REDIRECT_URL), OAUTH_REDIRECT_URL)
+        .then((result) => {
+          devLog("oauth-result", { type: result.type });
+          // Cancelled or dismissed: stay on the page the user started from.
+          if (result.type !== "success") return;
+          const target = callbackUrlFor(result.url, origin);
+          webRef.current?.injectJavaScript(`window.location.assign(${JSON.stringify(target)});true;`);
+        })
+        .catch(() => devLog("oauth-failed"))
+        .finally(() => {
+          oauthInFlight.current = false;
+        });
+    },
+    [origin],
+  );
+
   const onShouldStartLoadWithRequest = useCallback(
     (req: ShouldStartLoadRequest) => {
       if (!req.isTopFrame) return true;
+      // Backstop for a page that navigates to Google sign-in itself.
+      if (isSupabaseAuthorizeUrl(req.url)) {
+        startOAuth(req.url);
+        return false;
+      }
       const decision = classifyNavigation(req.url, origin);
       if (decision.kind === "internal") return true;
       if (decision.kind === "external") openExternal(decision.url);
       else devLog("navigation-blocked", { url: redactUrl(req.url) });
       return false;
     },
-    [origin, openExternal],
+    [origin, openExternal, startOAuth],
   );
 
   // target="_blank" / window.open means "keep this page": loading the target in
@@ -197,11 +228,12 @@ function Shell({ url, origin }: { url: string; origin: string }) {
         devLog("navigation-escaped", { url: redactUrl(target) });
         webRef.current?.stopLoading();
         const decision = classifyNavigation(target, origin);
-        if (decision.kind === "external") openExternal(decision.url);
+        if (isSupabaseAuthorizeUrl(target)) startOAuth(target);
+        else if (decision.kind === "external") openExternal(decision.url);
       }
       reloadApp();
     },
-    [origin, openExternal, reloadApp],
+    [origin, openExternal, reloadApp, startOAuth],
   );
 
   // A top-level URL that isn't the web app and isn't an in-place scheme
@@ -212,27 +244,12 @@ function Shell({ url, origin }: { url: string; origin: string }) {
   );
 
   // Google sign-in requested by the web app (see src/oauth.ts).
-  const oauthInFlight = useRef(false);
   const onMessage = useCallback(
     (event: WebViewMessageEvent) => {
       const authorizeUrl = parseOAuthRequest(event.nativeEvent.data, event.nativeEvent.url, origin);
-      if (!authorizeUrl || oauthInFlight.current) return;
-      oauthInFlight.current = true;
-      devLog("oauth-start");
-      WebBrowser.openAuthSessionAsync(authorizeUrl, OAUTH_REDIRECT_URL)
-        .then((result) => {
-          devLog("oauth-result", { type: result.type });
-          // Cancelled or dismissed: stay on the page the user started from.
-          if (result.type !== "success") return;
-          const target = callbackUrlFor(result.url, origin);
-          webRef.current?.injectJavaScript(`window.location.assign(${JSON.stringify(target)});true;`);
-        })
-        .catch(() => devLog("oauth-failed"))
-        .finally(() => {
-          oauthInFlight.current = false;
-        });
+      if (authorizeUrl) startOAuth(authorizeUrl);
     },
-    [origin],
+    [origin, startOAuth],
   );
 
   const onNavigationStateChange = useCallback(
