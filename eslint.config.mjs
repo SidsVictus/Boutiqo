@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Expo Android shell — its own package with its own tooling (see android/README.md).
+    "android/**",
   ]),
 ]);
 

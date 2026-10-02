@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ds/Button";
 import { Checkbox } from "@/components/ds/Checkbox";
@@ -63,8 +64,8 @@ export default function OwnerTermsPage() {
           </div>
         ) : null}
         <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 20 }}>
-          <Checkbox checked={tnc} onChange={(e) => setTnc(e.target.checked)} label="I accept the Terms & conditions" />
-          <Checkbox checked={privacy} onChange={(e) => setPrivacy(e.target.checked)} label="I accept the Privacy policy" />
+          <Checkbox checked={tnc} onChange={(e) => setTnc(e.target.checked)} label={<>I accept the <Link href="/terms" target="_blank">Terms &amp; conditions</Link></>} />
+          <Checkbox checked={privacy} onChange={(e) => setPrivacy(e.target.checked)} label={<>I accept the <Link href="/privacy" target="_blank">Privacy policy</Link></>} />
         </div>
         <Button block disabled={!canContinue || loading} onClick={handleAccept}>
           {loading ? "Setting up…" : "Continue"}

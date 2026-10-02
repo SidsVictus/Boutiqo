@@ -140,6 +140,14 @@ Requires `.env.local` filled in per "Local setup" above — every screen now
 reads/writes the real Supabase project (and R2, once enabled). There is no
 mock-data mode anymore.
 
+## Android app
+
+`android/` is an Expo + React Native WebView shell that loads this web app
+(production: https://boutiqoo.netlify.app) and ships as a directly-shared
+APK. It adds no screens, backend, auth or storage of its own. Web deploys
+reach Android users without a new APK. See `android/README.md` for setup,
+building the APK, distribution and the update model.
+
 ## Testing
 
 ```bash

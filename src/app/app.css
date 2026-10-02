@@ -713,3 +713,66 @@
 .bq-toast-host > * {
   pointer-events: auto;
 }
+
+/* ---------- Legal pages (/privacy, /terms) ---------- */
+.bq-legal {
+  min-height: 100dvh;
+  background: var(--surface-page);
+  padding: 24px 16px 48px;
+}
+.bq-legal__card {
+  max-width: 760px;
+  margin: 0 auto;
+  background: var(--surface-card);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+  padding: 28px 22px;
+  color: var(--text-body);
+  line-height: 1.6;
+}
+.bq-legal__card h1 {
+  font-family: var(--font-sans);
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-strong);
+  margin: 0 0 4px;
+}
+.bq-legal__card h2 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-strong);
+  margin: 28px 0 8px;
+}
+.bq-legal__card p,
+.bq-legal__card li {
+  font-size: 15px;
+}
+.bq-legal__card ul {
+  padding-left: 20px;
+  margin: 8px 0;
+}
+.bq-legal__card li {
+  margin-bottom: 6px;
+}
+.bq-legal__card a {
+  color: var(--text-link);
+}
+.bq-legal__meta {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-bottom: 20px;
+}
+.bq-legal__nav {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line-hairline);
+  font-size: 14px;
+}
+@media (min-width: 768px) {
+  .bq-legal__card {
+    padding: 40px 48px;
+  }
+}
