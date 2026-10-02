@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Button } from "@/components/ds/Button";
 import { Logo } from "@/components/app/Logo";
 import { useSession } from "@/lib/session/SessionContext";
@@ -61,6 +62,10 @@ export default function Home() {
           Sign in to an existing boutique
         </Button>
         <p style={{ marginTop: 18, fontSize: 13, color: "var(--text-muted)" }}>Each boutique sees only its own customers and orders.</p>
+        <p style={{ marginTop: 12, fontSize: 13, color: "var(--text-muted)", display: "flex", gap: 16 }}>
+          <Link href="/privacy">Privacy Policy</Link>
+          <Link href="/terms">Terms &amp; Conditions</Link>
+        </p>
       </div>
     </main>
   );
