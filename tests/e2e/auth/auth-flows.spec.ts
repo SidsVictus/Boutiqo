@@ -115,6 +115,43 @@ test.describe("Google sign-in", () => {
     await ctx.close();
   });
 
+  test("Android app: returns through /auth/app-callback (no custom scheme on Supabase's allow-list needed)", async ({ page }) => {
+    await page.addInitScript(() => {
+      const sent: string[] = [];
+      (window as unknown as { __sent: string[] }).__sent = sent;
+      (window as unknown as { ReactNativeWebView: unknown }).ReactNativeWebView = { postMessage: (m: string) => sent.push(m) };
+      (window as unknown as { BoutiqoShell: unknown }).BoutiqoShell = Object.freeze({ oauthRedirectUrl: "exp://192.168.1.3:8081/--/auth-callback" });
+    });
+    await page.goto("/owner/signup");
+    await page.getByRole("button", { name: "Continue with Google" }).click();
+    await expect.poll(() => page.evaluate(() => (window as unknown as { __sent: string[] }).__sent.length)).toBe(1);
+    const { url } = JSON.parse(await page.evaluate(() => (window as unknown as { __sent: string[] }).__sent[0]));
+
+    // What the shell does: point Supabase at the hand-off route (withAppRedirect + appReturnUrl).
+    const authorize = new URL(url);
+    authorize.searchParams.set("redirect_to", `http://localhost:3210/auth/app-callback?app=${encodeURIComponent("exp://192.168.1.3:8081/--/auth-callback")}`);
+    const fromSupabase = await page.request.get(authorize.toString(), { maxRedirects: 0 });
+    const handoff = fromSupabase.headers()["location"];
+    expect(handoff).toContain("/auth/app-callback?app=");
+    const fromHandoff = await page.request.get(handoff, { maxRedirects: 0 });
+    expect(fromHandoff.status()).toBe(302);
+    const backToApp = fromHandoff.headers()["location"];
+    expect(backToApp).toMatch(/^exp:\/\/192\.168\.1\.3:8081\/--\/auth-callback\?code=/);
+
+    const code = new URL(backToApp.replace(/^exp:/, "http:")).searchParams.get("code")!;
+    await page.goto(`/auth/callback?code=${encodeURIComponent(code)}`);
+    await page.waitForURL((u) => u.pathname === "/owner/register");
+    await expect(page.getByLabel("Owner name")).toHaveValue("Priya Sharma");
+  });
+
+  test("/auth/app-callback only forwards to the app's own schemes", async ({ page }) => {
+    const res = await page.request.get("/auth/app-callback?app=https%3A%2F%2Fevil.example%2F&code=x", { maxRedirects: 0 });
+    expect(res.status()).toBe(307);
+    expect(res.headers()["location"]).toContain("/owner/login?error=oauth");
+    const ok = await page.request.get("/auth/app-callback?app=boutiqo%3A%2F%2Fauth-callback&code=abc", { maxRedirects: 0 });
+    expect(ok.headers()["location"]).toBe("boutiqo://auth-callback?code=abc");
+  });
+
   test("Android app: hands the sign-in URL to the shell and completes from its redirect", async ({ page }) => {
     // What android/App.tsx injects before each page load, plus a stand-in for
     // the native postMessage bridge that records what the page sends.

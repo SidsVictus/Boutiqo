@@ -183,11 +183,12 @@ cleared, and the app never pins an old version.
 
 ## Known limitations
 
-- **Google sign-in needs the app's redirect URLs allowed in Supabase.**
-  Under Authentication → URL Configuration → Redirect URLs, add
-  `boutiqo://auth-callback` (APK builds) and `exp://**` (Expo Go during
-  development). Without them, Supabase falls back to the Site URL and the
-  sign-in tab stays open on the website instead of returning to the app.
+- **Google sign-in returns via the website.** Supabase sends the result to
+  `https://boutiqoo.netlify.app/auth/app-callback`, which forwards it to the
+  app (`boutiqo://auth-callback`, or `exp://…` in Expo Go). Only
+  `https://boutiqoo.netlify.app/**` needs to be in Supabase's Redirect URLs;
+  matching custom schemes there proved unreliable, which left users signed in
+  on the website inside the sign-in tab.
 - **The WhatsApp buttons** in the web app are still placeholders (they don't
   navigate). Once the web app points them at `https://wa.me/…`, the shell
   opens WhatsApp with no APK change needed.

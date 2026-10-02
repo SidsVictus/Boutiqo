@@ -12,7 +12,7 @@ import appJson from "./app.json";
 import { INITIAL_LOAD_TIMEOUT_MS, resolveWebAppConfig } from "./src/config";
 import { devLog } from "./src/log";
 import { classifyNavigation, redactUrl } from "./src/navigation";
-import { bridgeScript, callbackUrlFor, isSupabaseAuthorizeUrl, parseOAuthRequest, withAppRedirect } from "./src/oauth";
+import { appReturnUrl, bridgeScript, callbackUrlFor, isSupabaseAuthorizeUrl, parseOAuthRequest, withAppRedirect } from "./src/oauth";
 import { StatusScreen, type ShellProblem } from "./src/StatusScreen";
 import { colors } from "./src/theme";
 
@@ -31,9 +31,10 @@ const LOAD_SUCCESS_SETTLE_MS = 250;
 // "install the app" banner). Appended to the normal Chrome WebView UA.
 const USER_AGENT_SUFFIX = `BoutiqoAndroid/${appJson.expo.version}`;
 
-// Where Supabase sends the browser back after Google sign-in: boutiqo://auth-callback
-// in a built APK, exp://<dev-server>/--/auth-callback in Expo Go. Must be in
-// Supabase's redirect allow-list (see android/README.md).
+// The app's own URL that brings the sign-in tab back here: boutiqo://auth-callback
+// in a built APK, exp://<dev-server>/--/auth-callback in Expo Go. Supabase
+// returns to the web app's /auth/app-callback, which forwards to it (see
+// src/oauth.ts appReturnUrl), so it doesn't need to be on Supabase's allow-list.
 const OAUTH_REDIRECT_URL = ExpoLinking.createURL("auth-callback");
 const BRIDGE_SCRIPT = bridgeScript(OAUTH_REDIRECT_URL);
 
@@ -166,7 +167,7 @@ function Shell({ url, origin }: { url: string; origin: string }) {
       if (oauthInFlight.current) return;
       oauthInFlight.current = true;
       devLog("oauth-start", { redirect: OAUTH_REDIRECT_URL });
-      WebBrowser.openAuthSessionAsync(withAppRedirect(authorizeUrl, OAUTH_REDIRECT_URL), OAUTH_REDIRECT_URL)
+      WebBrowser.openAuthSessionAsync(withAppRedirect(authorizeUrl, appReturnUrl(origin, OAUTH_REDIRECT_URL)), OAUTH_REDIRECT_URL)
         .then((result) => {
           devLog("oauth-result", { type: result.type });
           // Cancelled or dismissed: stay on the page the user started from.

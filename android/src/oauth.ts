@@ -45,8 +45,9 @@ export function isSupabaseAuthorizeUrl(url: string): boolean {
 }
 
 /**
- * The shell, not the web page, decides where Supabase sends the user back to:
- * its own URL, so the sign-in tab always returns to the app. The PKCE
+ * The shell, not the web page, decides where Supabase sends the user back to.
+ * Pass the web app's /auth/app-callback hand-off URL (see appReturnUrl): it's
+ * https, so always on Supabase's allow-list, and forwards to the app. The PKCE
  * challenge in the URL is untouched, so the code still only works with the
  * verifier cookie in the app's WebView.
  */
@@ -75,4 +76,13 @@ export function callbackUrlFor(redirectedTo: string, appOrigin: string): string 
   const code = params.get("code");
   if (code && !params.get("error")) return `${appOrigin}/auth/callback?code=${encodeURIComponent(code)}`;
   return `${appOrigin}/owner/login?error=oauth`;
+}
+
+/**
+ * Where Supabase should send the sign-in result: the web app's hand-off route,
+ * which forwards it to the app's own URL (boutiqo://auth-callback, or Expo Go's
+ * exp://…). Custom schemes don't need to be on Supabase's allow-list this way.
+ */
+export function appReturnUrl(appOrigin: string, appRedirectUrl: string): string {
+  return `${appOrigin}/auth/app-callback?app=${encodeURIComponent(appRedirectUrl)}`;
 }
