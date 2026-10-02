@@ -6,6 +6,10 @@ import { ToastProvider } from "@/lib/session/ToastContext";
 export const metadata: Metadata = {
   title: "Boutiqo",
   description: "Order book for small boutiques and tailors.",
+  // Google Search Console ownership of boutiqoo.netlify.app (needed for Google
+  // OAuth brand verification). The HTML-file method is also served from
+  // public/googlecb36037aae910ac8.html; keep both while verification is in use.
+  verification: { google: "RGuqx9NV8EVKuZocaf0S3sIEfMQfITGeX1cfBvOvHME" },
 };
 
 // viewport-fit=cover is required for env(safe-area-inset-*) to report real
