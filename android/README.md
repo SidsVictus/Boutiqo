@@ -21,6 +21,7 @@ no R2 code and no secrets. Its only jobs are:
 | Keep the web app's origin inside the WebView and send everything else to Android (browser, WhatsApp, dialer, mail…); block `javascript:`, `file:`, unknown schemes | `src/navigation.ts` |
 | Offline banner, offline/error/timeout screens with retry, automatic retry on reconnect/resume | `App.tsx`, `src/StatusScreen.tsx` |
 | Web app URL + HTTPS enforcement | `src/config.ts` |
+| Google sign-in via a secure browser tab (Google blocks it inside WebViews) | `src/oauth.ts`, `App.tsx` (`onMessage`) |
 | Dev-only logging, with query strings and `/track/<token>` redacted | `src/log.ts` |
 
 ## Native features: what is and isn't native
@@ -34,6 +35,15 @@ no R2 code and no secrets. Its only jobs are:
   declared, the WebView would have to ask for it, and without it, Android lets
   the system camera app take the photo on the app's behalf. So there's no
   permission prompt, and there's no camera code to maintain.
+- **Google sign-in**: Google refuses OAuth inside embedded WebViews, so this
+  is the one native feature. The shell injects `window.BoutiqoShell` with its
+  redirect URL. The web app's "Continue with Google" then posts the Supabase
+  authorize URL to the shell instead of navigating to it. The shell opens that
+  URL in a Chrome Custom Tab (`expo-web-browser`). Supabase redirects back to
+  `boutiqo://auth-callback?code=…`, and the shell loads the web app's
+  `/auth/callback?code=…` in the WebView. The PKCE verifier cookie from the
+  start of the flow is there, so the session ends up inside the app. There's
+  still one auth system (Supabase) and no native auth code.
 - **Downloads**: the web app has no file-download flows (R2 images are shown
   inline via presigned URLs), so there's no native download handling.
 - **Permissions**: `INTERNET`, plus `ACCESS_NETWORK_STATE`/`ACCESS_WIFI_STATE`
@@ -173,13 +183,11 @@ cleared, and the app never pins an old version.
 
 ## Known limitations
 
-- **"Continue with Google" won't work in the app.** Google blocks OAuth
-  sign-in inside embedded WebViews. The shell sends the non-app sign-in page
-  to the external browser, but then the session ends up in the browser, not
-  the app. Email/password login works. (Google OAuth isn't configured on the
-  Supabase project yet anyway; see the root README.) To support it later,
-  add Android App Links for the web domain plus an in-app auth handoff. That
-  is a native change and needs a new APK.
+- **Google sign-in needs the app's redirect URLs allowed in Supabase.**
+  Under Authentication → URL Configuration → Redirect URLs, add
+  `boutiqo://auth-callback` (APK builds) and `exp://**` (Expo Go during
+  development). Without them, Supabase falls back to the Site URL and the
+  sign-in tab stays open on the website instead of returning to the app.
 - **The WhatsApp buttons** in the web app are still placeholders (they don't
   navigate). Once the web app points them at `https://wa.me/…`, the shell
   opens WhatsApp with no APK change needed.

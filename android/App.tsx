@@ -1,15 +1,18 @@
 import NetInfo from "@react-native-community/netinfo";
+import * as ExpoLinking from "expo-linking";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
+import * as WebBrowser from "expo-web-browser";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, AppState, BackHandler, KeyboardAvoidingView, Linking, StyleSheet, Text, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
-import type { ShouldStartLoadRequest, WebViewErrorEvent, WebViewHttpErrorEvent, WebViewNavigation, WebViewOpenWindowEvent } from "react-native-webview/lib/WebViewTypes";
+import type { ShouldStartLoadRequest, WebViewErrorEvent, WebViewHttpErrorEvent, WebViewMessageEvent, WebViewNavigation, WebViewOpenWindowEvent } from "react-native-webview/lib/WebViewTypes";
 import appJson from "./app.json";
 import { INITIAL_LOAD_TIMEOUT_MS, resolveWebAppConfig } from "./src/config";
 import { devLog } from "./src/log";
 import { classifyNavigation, redactUrl } from "./src/navigation";
+import { bridgeScript, callbackUrlFor, parseOAuthRequest } from "./src/oauth";
 import { StatusScreen, type ShellProblem } from "./src/StatusScreen";
 import { colors } from "./src/theme";
 
@@ -27,6 +30,12 @@ const LOAD_SUCCESS_SETTLE_MS = 250;
 // Lets the web app detect the shell if it ever needs to (e.g. to hide an
 // "install the app" banner). Appended to the normal Chrome WebView UA.
 const USER_AGENT_SUFFIX = `BoutiqoAndroid/${appJson.expo.version}`;
+
+// Where Supabase sends the browser back after Google sign-in: boutiqo://auth-callback
+// in a built APK, exp://<dev-server>/--/auth-callback in Expo Go. Must be in
+// Supabase's redirect allow-list (see android/README.md).
+const OAUTH_REDIRECT_URL = ExpoLinking.createURL("auth-callback");
+const BRIDGE_SCRIPT = bridgeScript(OAUTH_REDIRECT_URL);
 
 export default function App() {
   return (
@@ -202,6 +211,30 @@ function Shell({ url, origin }: { url: string; origin: string }) {
     [isAppUrl, origin],
   );
 
+  // Google sign-in requested by the web app (see src/oauth.ts).
+  const oauthInFlight = useRef(false);
+  const onMessage = useCallback(
+    (event: WebViewMessageEvent) => {
+      const authorizeUrl = parseOAuthRequest(event.nativeEvent.data, event.nativeEvent.url, origin);
+      if (!authorizeUrl || oauthInFlight.current) return;
+      oauthInFlight.current = true;
+      devLog("oauth-start");
+      WebBrowser.openAuthSessionAsync(authorizeUrl, OAUTH_REDIRECT_URL)
+        .then((result) => {
+          devLog("oauth-result", { type: result.type });
+          // Cancelled or dismissed: stay on the page the user started from.
+          if (result.type !== "success") return;
+          const target = callbackUrlFor(result.url, origin);
+          webRef.current?.injectJavaScript(`window.location.assign(${JSON.stringify(target)});true;`);
+        })
+        .catch(() => devLog("oauth-failed"))
+        .finally(() => {
+          oauthInFlight.current = false;
+        });
+    },
+    [origin],
+  );
+
   const onNavigationStateChange = useCallback(
     (nav: WebViewNavigation) => {
       canGoBackRef.current = nav.canGoBack;
@@ -286,6 +319,8 @@ function Shell({ url, origin }: { url: string; origin: string }) {
         onError={onError}
         onHttpError={onHttpError}
         onRenderProcessGone={onRenderProcessGone}
+        onMessage={onMessage}
+        injectedJavaScriptBeforeContentLoaded={BRIDGE_SCRIPT}
         // Web platform features the app relies on (Supabase session in
         // cookies/localStorage, client-side rendering).
         javaScriptEnabled

@@ -2,6 +2,7 @@
   "expo": {
     "name": "Boutiqo",
     "slug": "boutiqo",
+    "scheme": "boutiqo",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -44,7 +45,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#fad3d0"
         }
-      ]
+      ],
+      "expo-web-browser"
     ]
   }
 }
