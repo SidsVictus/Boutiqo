@@ -10,7 +10,7 @@ import { ApiError } from "@/lib/data/store";
 import { StepperPills, type StepDef } from "@/components/app/StepperPills";
 import { MeasurementGrid, type MeasurementValues } from "@/components/app/MeasurementGrid";
 import { MeasurementGuide } from "@/components/app/MeasurementGuide";
-import { VoiceTypeToggle, VoiceListeningDisc } from "@/components/app/VoiceTypeToggle";
+import { VoiceTypeToggle, VoiceMeasurementInput } from "@/components/app/VoiceTypeToggle";
 import { ClothPhotoUpload, uploadDeferredClothPhoto } from "@/components/app/ClothPhotoUpload";
 import { CalendarGrid } from "@/components/app/CalendarGrid";
 import { Input } from "@/components/ds/Input";
@@ -130,8 +130,9 @@ export default function NewOrderPage() {
         // `error` state) since we navigate away immediately after.
         try {
           await uploadDeferredClothPhoto(activeBoutique.id, order.id, clothPhotoFile);
-        } catch {
-          flash("Order saved, but the cloth photo failed to upload. Add it from the order record.", "danger");
+        } catch (err) {
+          const reason = err instanceof ApiError ? ` (${err.message})` : "";
+          flash(`Order saved, but the cloth photo failed to upload${reason}. Add it from the order record.`, "danger");
         }
       }
       router.push(`/owner/orders/${order.id}/confirm`);
@@ -156,14 +157,10 @@ export default function NewOrderPage() {
       {step === 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <VoiceTypeToggle mode={inputMode} onChange={setInputMode} />
-          {inputMode === "voice" ? (
-            <VoiceListeningDisc />
-          ) : (
-            <>
-              <MeasurementGrid values={measurements} onChange={setMeasurement} />
-              <MeasurementGuide />
-            </>
-          )}
+          {inputMode === "voice" ? <VoiceMeasurementInput onCapture={(values) => setMeasurements((m) => ({ ...m, ...values }))} /> : null}
+          {/* Grid stays visible in voice mode so captured values can be checked and corrected. */}
+          <MeasurementGrid values={measurements} onChange={setMeasurement} />
+          {inputMode === "text" ? <MeasurementGuide /> : null}
         </div>
       )}
 
@@ -232,10 +229,10 @@ function DeliveryDateStep({
       <CalendarGrid year={today.getFullYear()} month={today.getMonth()} loadByDate={loadByDate} selectedDate={dueDate} disablePast onSelectDate={onSelect} />
       {dueDate ? (
         <div className="bq-card" style={{ background: "var(--surface-inverse)", color: "var(--text-inverse)" }}>
-          <div className="bq-num" style={{ fontSize: 18, marginBottom: 4 }}>
+          <div className="bq-num" style={{ fontSize: 20, marginBottom: 4 }}>
             {formatShortDate(dueDate)}
           </div>
-          <div style={{ fontSize: 13, opacity: 0.85 }}>
+          <div style={{ fontSize: 15, opacity: 0.85 }}>
             {otherOrdersOnDay} other order{otherOrdersOnDay === 1 ? "" : "s"} due that day
             {customerName ? ` · ${customerName}` : ""}
             {garmentType ? ` · ${garmentType}` : ""}
