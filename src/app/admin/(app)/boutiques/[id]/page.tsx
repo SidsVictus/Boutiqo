@@ -7,7 +7,7 @@ import { listOrders } from "@/lib/data/orders";
 import { Card } from "@/components/ds/Card";
 import { Badge } from "@/components/ds/Badge";
 import { Button } from "@/components/ds/Button";
-import { formatShortDate } from "@/lib/calc/format";
+import { formatLongDate } from "@/lib/calc/format";
 import type { Boutique, Order } from "@/lib/supabase/types";
 
 const STATUS_TONE: Record<Boutique["status"], "success" | "warning" | "neutral"> = {
@@ -34,12 +34,12 @@ export default function AdminBoutiqueDetailPage() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 640 }}>
       <Card title={boutique.name} meta={`${boutique.area} · ${boutique.category}`} action={<Badge tone={STATUS_TONE[boutique.status]}>{boutique.status.replace("_", " ")}</Badge>}>
-        <div className="bq-g2" style={{ marginTop: 8, fontSize: 14 }}>
+        <div className="bq-g2" style={{ marginTop: 8, fontSize: 16 }}>
           <span>Owner: {boutique.owner_name}</span>
           <span>Email: {boutique.email}</span>
           <span>Phone: {boutique.phone || "—"}</span>
           <span>GST: {boutique.gst_number || "—"}</span>
-          <span>Joined: {formatShortDate(boutique.created_at)}</span>
+          <span>Joined: {formatLongDate(boutique.created_at)}</span>
           <span>Orders: {orders.length}</span>
         </div>
       </Card>
@@ -55,7 +55,7 @@ export default function AdminBoutiqueDetailPage() {
               .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
               .slice(0, 6)
               .map((o) => (
-                <div key={o.id} style={{ fontSize: 14, display: "flex", justifyContent: "space-between" }}>
+                <div key={o.id} style={{ fontSize: 16, display: "flex", justifyContent: "space-between" }}>
                   <span>{o.order_code}</span>
                   <span style={{ color: "var(--text-muted)" }}>{o.stage}</span>
                 </div>

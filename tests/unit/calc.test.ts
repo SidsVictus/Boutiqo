@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { loadBand } from "@/lib/calc/calendarLoad";
 import { balance, isOverdue, effectiveStage, isStageBefore, isStageAfter, nextStage } from "@/lib/calc/order";
-import { formatMoney, formatShortDate } from "@/lib/calc/format";
+import { formatLongDate, formatMoney, formatShortDate } from "@/lib/calc/format";
 
 describe("loadBand (3-colour thermal scale, capacity 8)", () => {
   it("0-3 is free", () => {
@@ -63,6 +63,10 @@ describe("formatting", () => {
   it("formatMoney uses en-IN grouping with a rupee sign", () => {
     expect(formatMoney(4500)).toBe("₹4,500");
     expect(formatMoney(150000)).toBe("₹1,50,000");
+  });
+  it("formats timestamptz values (created_at) too, not just date columns", () => {
+    expect(formatLongDate("2026-09-14T10:20:30.123+00:00")).toBe("14 Sept 2026");
+    expect(formatShortDate("2026-09-14T10:20:30Z")).toBe("14 Sept");
   });
   it("formatShortDate reads '14 Sep', never '09/14'", () => {
     expect(formatShortDate("2026-09-14")).toBe("14 Sept");
