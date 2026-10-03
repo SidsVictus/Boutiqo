@@ -32,7 +32,8 @@ test("hands the code to the web callback, errors to the login page", () => {
 });
 
 test("bridge script exposes the redirect URL as a safely quoted literal", () => {
-  assert.equal(bridgeScript('boutiqo://x"; alert(1); "'), 'window.BoutiqoShell = Object.freeze({ oauthRedirectUrl: "boutiqo://x\\"; alert(1); \\"" }); true;');
+  assert.equal(bridgeScript('boutiqo://x"; alert(1); "'), 'window.BoutiqoShell = Object.freeze({ oauthRedirectUrl: "boutiqo://x\\"; alert(1); \\"", voice: false }); true;');
+  assert.ok(bridgeScript("boutiqo://x", true).includes("voice: true"));
 });
 
 test("recognises the Supabase authorize URL and points its redirect at the app", () => {

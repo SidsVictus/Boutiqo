@@ -34,6 +34,8 @@ export interface DraftSignup {
 /** Injected by the Android shell (android/App.tsx) before the page loads. */
 interface BoutiqoShellBridge {
   oauthRedirectUrl?: string;
+  /** True when the app can do speech recognition natively (src/lib/voice/engine.ts). */
+  voice?: boolean;
 }
 declare global {
   interface Window {
@@ -190,8 +192,16 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const loginAdmin = React.useCallback(
     async (email: string, password: string): Promise<LoginResult> => {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) return { ok: false, code: "invalid_credentials", message: "Incorrect email or password" };
+      // Same server route as owners, so the admin roster is synced (placeholder
+      // accounts removed) before the password is checked.
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      if (!res.ok) return { ok: false, code: "invalid_credentials", message: "Incorrect email or password" };
+      // The route set the session cookies; make the browser client pick them up.
+      await supabase.auth.getSession();
 
       const { data: adminRows } = await supabase.rpc("current_admin_self");
       const admin = Array.isArray(adminRows) ? (adminRows[0] as AdminUser | undefined) : undefined;

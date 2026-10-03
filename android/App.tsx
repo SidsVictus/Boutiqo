@@ -1,4 +1,5 @@
 import NetInfo from "@react-native-community/netinfo";
+import { requireOptionalNativeModule } from "expo";
 import * as ExpoLinking from "expo-linking";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
@@ -7,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, AppState, BackHandler, KeyboardAvoidingView, Linking, StyleSheet, Text, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
+import type { ExpoSpeechRecognitionModuleType } from "expo-speech-recognition/build/ExpoSpeechRecognitionModule.types";
 import type { ShouldStartLoadRequest, WebViewErrorEvent, WebViewHttpErrorEvent, WebViewMessageEvent, WebViewNavigation, WebViewOpenWindowEvent } from "react-native-webview/lib/WebViewTypes";
 import appJson from "./app.json";
 import { INITIAL_LOAD_TIMEOUT_MS, resolveWebAppConfig } from "./src/config";
@@ -14,6 +16,7 @@ import { devLog } from "./src/log";
 import { classifyNavigation, redactUrl } from "./src/navigation";
 import { appReturnUrl, bridgeScript, callbackUrlFor, isSupabaseAuthorizeUrl, parseOAuthRequest, withAppRedirect } from "./src/oauth";
 import { StatusScreen, type ShellProblem } from "./src/StatusScreen";
+import { parseVoiceCommand, recognitionOptions, voiceEventScript, type VoiceEvent } from "./src/voice";
 import { colors } from "./src/theme";
 
 // Keep the native splash up until the web app has actually rendered, so the
@@ -36,7 +39,11 @@ const USER_AGENT_SUFFIX = `BoutiqoAndroid/${appJson.expo.version}`;
 // returns to the web app's /auth/app-callback, which forwards to it (see
 // src/oauth.ts appReturnUrl), so it doesn't need to be on Supabase's allow-list.
 const OAUTH_REDIRECT_URL = ExpoLinking.createURL("auth-callback");
-const BRIDGE_SCRIPT = bridgeScript(OAUTH_REDIRECT_URL);
+
+// Android's speech recognizer (see src/voice.ts). Null in Expo Go, which
+// doesn't bundle this module: the web app then shows its keyboard-mic fallback.
+const Speech = requireOptionalNativeModule<ExpoSpeechRecognitionModuleType>("ExpoSpeechRecognition");
+const BRIDGE_SCRIPT = bridgeScript(OAUTH_REDIRECT_URL, !!Speech);
 
 export default function App() {
   return (
@@ -183,6 +190,82 @@ function Shell({ url, origin }: { url: string; origin: string }) {
     [origin],
   );
 
+  // Voice input for the web app: recognition runs natively, text goes back
+  // to the page as events. Only one session at a time; any page change or
+  // backgrounding the app aborts it.
+  const voiceActive = useRef(false);
+  const sendVoice = useCallback((event: VoiceEvent) => {
+    webRef.current?.injectJavaScript(voiceEventScript(event));
+  }, []);
+  const stopVoice = useCallback((how: "stop" | "abort") => {
+    if (!Speech || !voiceActive.current) return;
+    try {
+      if (how === "stop") Speech.stop();
+      else Speech.abort();
+    } catch {
+      // already stopped
+    }
+  }, []);
+  useEffect(() => {
+    if (!Speech) return;
+    const subs = [
+      Speech.addListener("start", () => sendVoice({ type: "start" })),
+      Speech.addListener("audiostart", () => sendVoice({ type: "audiostart" })),
+      Speech.addListener("result", (e) => {
+        const transcript = e.results[0]?.transcript ?? "";
+        if (transcript) sendVoice({ type: "result", transcript, isFinal: e.isFinal });
+      }),
+      Speech.addListener("error", (e) => {
+        devLog("voice-error", { code: e.error });
+        sendVoice({ type: "error", code: e.error, message: e.message });
+      }),
+      Speech.addListener("end", () => {
+        voiceActive.current = false;
+        sendVoice({ type: "end" });
+      }),
+    ];
+    const appState = AppState.addEventListener("change", (next) => {
+      if (next !== "active") stopVoice("abort");
+    });
+    return () => {
+      subs.forEach((s) => s.remove());
+      appState.remove();
+      stopVoice("abort");
+    };
+  }, [sendVoice, stopVoice]);
+
+  const startVoice = useCallback(
+    async (lang: string) => {
+      if (!Speech) {
+        sendVoice({ type: "error", code: "service-not-allowed", message: "Voice input needs the latest Boutiqo app." });
+        sendVoice({ type: "end" });
+        return;
+      }
+      const perm = await Speech.requestPermissionsAsync();
+      if (!perm.granted) {
+        sendVoice({ type: "error", code: "not-allowed", message: "Microphone permission is off.", canAskAgain: perm.canAskAgain });
+        sendVoice({ type: "end" });
+        return;
+      }
+      if (!Speech.isRecognitionAvailable()) {
+        sendVoice({ type: "error", code: "service-not-allowed", message: "No speech recognition service on this phone. Install or update the Google app." });
+        sendVoice({ type: "end" });
+        return;
+      }
+      if (voiceActive.current) stopVoice("abort");
+      voiceActive.current = true;
+      devLog("voice-start", { lang });
+      try {
+        Speech.start(recognitionOptions(lang));
+      } catch {
+        voiceActive.current = false;
+        sendVoice({ type: "error", code: "client", message: "Couldn't start the microphone." });
+        sendVoice({ type: "end" });
+      }
+    },
+    [sendVoice, stopVoice],
+  );
+
   const onShouldStartLoadWithRequest = useCallback(
     (req: ShouldStartLoadRequest) => {
       if (!req.isTopFrame) return true;
@@ -244,18 +327,28 @@ function Shell({ url, origin }: { url: string; origin: string }) {
     [isAppUrl, origin],
   );
 
-  // Google sign-in requested by the web app (see src/oauth.ts).
+  // Messages from the web app: Google sign-in (src/oauth.ts) and voice input (src/voice.ts).
   const onMessage = useCallback(
     (event: WebViewMessageEvent) => {
-      const authorizeUrl = parseOAuthRequest(event.nativeEvent.data, event.nativeEvent.url, origin);
-      if (authorizeUrl) startOAuth(authorizeUrl);
+      const { data, url: sender } = event.nativeEvent;
+      const authorizeUrl = parseOAuthRequest(data, sender, origin);
+      if (authorizeUrl) {
+        startOAuth(authorizeUrl);
+        return;
+      }
+      const voice = parseVoiceCommand(data, sender, origin);
+      if (!voice) return;
+      if (voice.action === "start") void startVoice(voice.lang);
+      else if (voice.action === "open-settings") void Linking.openSettings();
+      else stopVoice(voice.action);
     },
-    [origin, startOAuth],
+    [origin, startOAuth, startVoice, stopVoice],
   );
 
   const onNavigationStateChange = useCallback(
     (nav: WebViewNavigation) => {
       canGoBackRef.current = nav.canGoBack;
+      if (nav.url !== lastUrlRef.current) stopVoice("abort");
       if (isAppUrl(nav.url)) {
         lastUrlRef.current = nav.url;
         escapedUrlRef.current = null;
@@ -263,7 +356,7 @@ function Shell({ url, origin }: { url: string; origin: string }) {
         escapeToApp(nav.url);
       }
     },
-    [isAppUrl, isForeignUrl, escapeToApp],
+    [isAppUrl, isForeignUrl, escapeToApp, stopVoice],
   );
 
   const onLoad = useCallback(() => {
