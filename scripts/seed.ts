@@ -1,6 +1,8 @@
 /**
  * Development-only seed script. Creates:
- *  - 4 Super Admin accounts (one per role) at @boutiqo.dev
+ *  - 4 Super Admin accounts (one per role) at @boutiqo.dev, ONLY when
+ *    SEED_DEV_ADMINS=1 (local dev databases). Real admins are email-only rows
+ *    claimed by Google sign-in; see supabase/migrations/0012_admin_allowlist_google_link.sql.
  *  - 2 Boutique Owner tenants at @boutiqo.dev, each with customers and orders
  *    covering every stage (including one overdue-by-derivation order) and a
  *    seeded boutique logo + cloth photo in R2
@@ -28,7 +30,8 @@ async function main() {
     auth: { persistSession: false },
   });
 
-  console.log("Seeding Super Admin accounts...");
+  const seedAdmins = process.env.SEED_DEV_ADMINS === "1";
+  console.log(seedAdmins ? "Seeding Super Admin accounts..." : "Skipping dev Super Admin accounts (set SEED_DEV_ADMINS=1 to create them).");
   const admins = [
     { name: "Dev Owner Admin", email: "admin.owner@boutiqo.dev", role: "owner_admin", active: true },
     { name: "Dev Support Admin", email: "admin.support@boutiqo.dev", role: "support_admin", active: true },
@@ -36,7 +39,7 @@ async function main() {
     { name: "Dev Viewer Admin", email: "admin.viewer@boutiqo.dev", role: "viewer", active: false },
   ] as const;
 
-  for (const a of admins) {
+  for (const a of seedAdmins ? admins : []) {
     const { data: created, error } = await supabase.auth.admin.createUser({
       email: a.email,
       password: DEV_PASSWORD,

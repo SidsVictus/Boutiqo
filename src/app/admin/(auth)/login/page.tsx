@@ -6,6 +6,7 @@ import { Button } from "@/components/ds/Button";
 import { Input } from "@/components/ds/Input";
 import { Logo } from "@/components/app/Logo";
 import { PasswordInput } from "@/components/app/PasswordInput";
+import { GoogleButton } from "@/components/app/GoogleButton";
 import { useSession } from "@/lib/session/SessionContext";
 
 export default function AdminLoginPage() {
@@ -47,6 +48,14 @@ export default function AdminLoginPage() {
             This admin account has been suspended.
           </div>
         ) : null}
+
+        <GoogleButton variant="primary" />
+        <p className="bq-field__hint" style={{ margin: "8px 0 0" }}>
+          Team members sign in with the Google account on the admin list. No password needed.
+        </p>
+        <div className="bq-divider-text" style={{ margin: "18px 0", textAlign: "center", color: "var(--text-muted)", fontSize: 15 }}>
+          or with a password
+        </div>
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <Input label="Email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />

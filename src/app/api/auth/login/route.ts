@@ -2,6 +2,7 @@ import { createSupabaseRouteClient } from "@/lib/supabase/server";
 import { z } from "zod";
 import { apiError, apiOk, apiValidationError } from "@/lib/api-response";
 import { logSecurityEvent } from "@/lib/log";
+import { syncAdminRoster } from "@/lib/auth/adminRoster";
 
 const bodySchema = z.object({
   email: z.string().trim().email(),
@@ -22,6 +23,8 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(body);
   if (!parsed.success) return apiValidationError(parsed.error);
 
+  // Placeholder admins must be gone before any password login is checked.
+  await syncAdminRoster();
   const supabase = await createSupabaseRouteClient();
   const { data, error } = await supabase.auth.signInWithPassword(parsed.data);
 

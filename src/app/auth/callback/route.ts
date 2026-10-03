@@ -3,6 +3,7 @@ import type { EmailOtpType } from "@supabase/supabase-js";
 import { createSupabaseRouteClient } from "@/lib/supabase/server";
 import { landingPathFor, safeNextPath, type AccountKind } from "@/lib/auth/redirects";
 import { logSecurityEvent } from "@/lib/log";
+import { claimAdminRow } from "@/lib/auth/adminRoster";
 
 /**
  * Single landing point for every redirect-based auth flow:
@@ -60,6 +61,10 @@ export async function GET(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.redirect(new URL(failPath, origin));
+
+  // A listed super admin signing in with Google gets their admin row linked
+  // before routing (see lib/auth/adminRoster.ts).
+  await claimAdminRow(user.id);
 
   let account: AccountKind = { kind: "none" };
   const { data: adminRows } = await supabase.rpc("current_admin_self");
