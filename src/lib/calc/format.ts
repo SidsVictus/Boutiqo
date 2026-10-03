@@ -20,3 +20,17 @@ export function formatShortDate(date: string | Date): string {
 export function formatLongDate(date: string | Date): string {
   return toDate(date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
+
+/** A Date's local calendar day as "YYYY-MM-DD". Not toISOString(): that is the
+ * UTC day, which in India (UTC+5:30) is the previous day for local midnight. */
+export function localDateKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/** "Tue, 14 Oct" for list headings. */
+export function formatDayHeading(date: string | Date): string {
+  return toDate(date).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
+}

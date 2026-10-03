@@ -1,12 +1,11 @@
 "use client";
 
 import { loadBand, LOAD_BAND_LABEL } from "@/lib/calc/calendarLoad";
+import { localDateKey } from "@/lib/calc/format";
 
 const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-function toKey(d: Date) {
-  return d.toISOString().slice(0, 10);
-}
+const toKey = localDateKey;
 
 export interface CalendarGridProps {
   year: number;

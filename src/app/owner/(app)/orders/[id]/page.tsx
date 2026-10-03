@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { getOrder, markOrderPaid } from "@/lib/data/orders";
 import { getCustomer } from "@/lib/data/customers";
@@ -71,7 +72,11 @@ export default function OrderDetailPage() {
           <div className="bq-num" style={{ fontSize: 15, color: "var(--text-muted)" }}>
             {order.order_code}
           </div>
-          <h1 style={{ margin: 0 }}>{customer.name}</h1>
+          <h1 style={{ margin: 0 }}>
+            <Link href={`/owner/customers/${customer.id}`} style={{ color: "inherit" }}>
+              {customer.name}
+            </Link>
+          </h1>
         </div>
         <StageBadge stage={stage} size="lg" />
       </div>
@@ -97,7 +102,7 @@ export default function OrderDetailPage() {
           {order.tailor_name ? <span>Tailor: {order.tailor_name}</span> : null}
           {order.cloth_description ? <span>Cloth: {order.cloth_description}</span> : null}
           {order.style_notes ? <span>Notes: {order.style_notes}</span> : null}
-          <span>Due {formatShortDate(order.due_date)}</span>
+          <Link href={`/owner/calendar?view=all&date=${order.due_date}`}>Due {formatShortDate(order.due_date)} · see that day</Link>
         </div>
       </Card>
 
