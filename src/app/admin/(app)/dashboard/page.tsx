@@ -28,12 +28,15 @@ export default function AdminDashboardPage() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <div className="bq-g3">
-        <StatTile label="Total boutiques" value={boutiques.length} />
-        <StatTile label="Active" value={active} />
-        <StatTile label="On hold / disabled" value={onHold + disabled} />
+        <StatTile label="Total boutiques" value={boutiques.length} href="/admin/boutiques" />
+        <StatTile label="Active" value={active} href="/admin/boutiques?status=active" />
+        <StatTile label="On hold / disabled" value={onHold + disabled} href="/admin/boutiques?status=inactive" />
       </div>
       <div>
-        <h2 style={{ marginBottom: 10 }}>Recently joined</h2>
+        <div className="bq-section-head">
+          <h2>Recently joined</h2>
+          <Link href="/admin/boutiques">All boutiques</Link>
+        </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {recent.map((b) => (
             <Link key={b.id} href={`/admin/boutiques/${b.id}`} className="bq-order-row">

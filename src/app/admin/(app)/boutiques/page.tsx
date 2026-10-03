@@ -14,8 +14,23 @@ const STATUS_TONE: Record<Boutique["status"], "success" | "warning" | "neutral">
   disabled: "neutral",
 };
 
+type StatusFilter = "all" | "active" | "inactive";
+const FILTERS: Array<{ key: StatusFilter; label: string }> = [
+  { key: "all", label: "All" },
+  { key: "active", label: "Active" },
+  { key: "inactive", label: "On hold / disabled" },
+];
+
 export default function AdminBoutiquesPage() {
   const [search, setSearch] = React.useState("");
+  const [status, setStatus] = React.useState<StatusFilter>("all");
+
+  // Dashboard tiles link here with ?status=…
+  React.useEffect(() => {
+    const raw = new URLSearchParams(window.location.search).get("status");
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reads the URL once after mount (no Suspense boundary needed).
+    if (raw === "active" || raw === "inactive") setStatus(raw);
+  }, []);
   const [boutiques, setBoutiques] = React.useState<Boutique[] | null>(null);
 
   React.useEffect(() => {
@@ -28,18 +43,27 @@ export default function AdminBoutiquesPage() {
     };
   }, [search]);
 
+  const visible = (boutiques ?? []).filter((b) => status === "all" || (status === "active" ? b.status === "active" : b.status !== "active"));
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <Input placeholder="Search by name, area or owner" iconLeft={<Search size={16} />} value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search boutiques" />
+      <div className="bq-chip-row" role="group" aria-label="Filter by status">
+        {FILTERS.map((f) => (
+          <button key={f.key} type="button" className="bq-chip" aria-pressed={status === f.key} onClick={() => setStatus(f.key)}>
+            {f.label}
+          </button>
+        ))}
+      </div>
       {boutiques === null ? (
         <div className="bq-skeleton" style={{ height: 200 }} />
-      ) : boutiques.length === 0 ? (
+      ) : visible.length === 0 ? (
         <div className="bq-empty">
           <div className="bq-empty__title">No boutiques found</div>
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {boutiques.map((b) => (
+          {visible.map((b) => (
             <Link key={b.id} href={`/admin/boutiques/${b.id}`} className="bq-order-row">
               <div className="bq-order-row__main">
                 <span className="bq-order-row__title">{b.name}</span>

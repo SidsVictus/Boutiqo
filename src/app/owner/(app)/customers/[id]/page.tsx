@@ -5,7 +5,9 @@ import { useParams } from "next/navigation";
 import { getCustomer, customerOrders } from "@/lib/data/customers";
 import { Card } from "@/components/ds/Card";
 import { OrderRow } from "@/components/app/OrderRow";
-import { Phone } from "@/components/app/icons";
+import { Button } from "@/components/ds/Button";
+import { Phone, Plus } from "@/components/app/icons";
+import { whatsappLink, whatsappNumber } from "@/lib/tracking/share";
 import type { Customer, Order } from "@/lib/supabase/types";
 
 export default function CustomerDetailPage() {
@@ -39,11 +41,25 @@ export default function CustomerDetailPage() {
       <Card title={customer.name} meta={customer.address || "No address on file"}>
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 8, fontSize: 16 }}>
           {customer.phone ? (
-            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <a href={`tel:${customer.phone.replace(/[^\d+]/g, "")}`} style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <Phone size={14} /> {customer.phone}
-            </span>
+            </a>
           ) : null}
-          {customer.instagram_handle ? <span>{customer.instagram_handle}</span> : null}
+          {customer.instagram_handle ? (
+            <a href={`https://instagram.com/${encodeURIComponent(customer.instagram_handle.replace(/^@/, "").trim())}`} target="_blank" rel="noopener noreferrer">
+              {customer.instagram_handle}
+            </a>
+          ) : null}
+        </div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
+          <Button as="a" href={`/owner/orders/new?customer=${customer.id}`} iconLeft={<Plus size={16} />}>
+            New order
+          </Button>
+          {whatsappNumber(customer.phone) ? (
+            <Button as="a" variant="whatsapp" href={whatsappLink(whatsappNumber(customer.phone), `Hello ${customer.name},`)} target="_blank" rel="noopener noreferrer">
+              WhatsApp
+            </Button>
+          ) : null}
         </div>
       </Card>
 

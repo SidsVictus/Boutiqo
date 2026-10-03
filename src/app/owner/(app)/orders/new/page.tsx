@@ -60,7 +60,12 @@ export default function NewOrderPage() {
 
   React.useEffect(() => {
     if (!boutique) return;
-    listCustomers(boutique.id).then(setCustomers);
+    // "New order" from a customer's page preselects that customer.
+    const preselect = new URLSearchParams(window.location.search).get("customer");
+    listCustomers(boutique.id).then((rows) => {
+      setCustomers(rows);
+      if (preselect && rows.some((c) => c.id === preselect)) setCustomerId(preselect);
+    });
     // "New order" prefills step A with the last order's figures (handoff §6);
     // the same fetched list also drives the delivery-date calendar's load.
     listOrders(boutique.id).then((rows) => {
