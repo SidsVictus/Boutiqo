@@ -6,7 +6,6 @@ import { getOrderTracking, type TrackingView } from "@/lib/data/tracking";
 import { TrackingProgress } from "@/components/app/TrackingProgress";
 import { RemoteImage } from "@/components/app/ClothPhotoUpload";
 import { Button } from "@/components/ds/Button";
-import { Logo } from "@/components/app/Logo";
 import { Send } from "@/components/app/icons";
 import { formatMoney, formatShortDate } from "@/lib/calc/format";
 import { STAGES } from "@/components/ds/StageBadge";
@@ -29,10 +28,14 @@ export default function CustomerTrackingPage() {
   return (
     <main className="bq-auth-bg" style={{ alignItems: "flex-start", paddingTop: 40 }}>
       <div style={{ width: "100%", maxWidth: 560 }}>
-        <div className="bq-auth-brand" style={{ justifyContent: "center" }}>
-          <Logo size={28} />
-          boutiqo
-        </div>
+        <header className="bq-track-brand">
+          {/* eslint-disable-next-line @next/next/no-img-element -- tiny static brand mark; next/image adds nothing here. */}
+          <img src="/brand/boutiqo-mark.png" alt="" width={44} height={44} className="bq-track-brand__mark" />
+          <div className="bq-track-brand__text">
+            <span className="bq-track-brand__name">Boutiqo</span>
+            <span className="bq-track-brand__sub">{view ? `Order tracking · ${view.boutiqueName}` : "Order tracking"}</span>
+          </div>
+        </header>
 
         {view === undefined ? (
           <div className="bq-auth-card">
@@ -99,6 +102,9 @@ export default function CustomerTrackingPage() {
             ) : null}
           </div>
         )}
+        <p className="bq-track-footer">
+          Powered by <strong>Boutiqo</strong>
+        </p>
       </div>
     </main>
   );
