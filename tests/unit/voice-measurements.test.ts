@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normaliseSpeech, parseMeasurements } from "@/lib/voice/parseMeasurements";
+import { normaliseSpeech, parseDictation, parseMeasurements } from "@/lib/voice/parseMeasurements";
 
 describe("normaliseSpeech", () => {
   it("turns spoken numbers into digits", () => {
@@ -33,5 +33,32 @@ describe("parseMeasurements", () => {
   it("ignores names without a number and impossible values", () => {
     expect(parseMeasurements("chest, waist 450, bust")).toEqual({});
     expect(parseMeasurements("hello there")).toEqual({});
+  });
+});
+
+describe("parseDictation (guided, in-order dictation)", () => {
+  it("fills fields in order from the starting field", () => {
+    expect(parseDictation("14 15 3", 0)).toEqual({ values: { m01_blouse_back_length: "14", m02_full_shoulder_width: "15", m03_shoulder_strap: "3" }, nextIndex: 3 });
+    expect(parseDictation("twelve, eleven", 3).values).toEqual({ m04_sleeve_length: "12", m05_sleeve_round: "11" });
+  });
+  it("continues after a named value, and skip moves on", () => {
+    expect(parseDictation("chest 36 bust 38 skip 30", 0)).toEqual({
+      values: { m10_chest_around: "36", m11_bust_around: "38", m13_shoulders_to_apex: "30" },
+      nextIndex: 13,
+    });
+  });
+  it("understands halves and quarters the way recognisers write them", () => {
+    expect(parseDictation("14 1/2, 15½, 3 and a quarter, 9 3/4", 0).values).toEqual({
+      m01_blouse_back_length: "14.5",
+      m02_full_shoulder_width: "15.5",
+      m03_shoulder_strap: "3.3",
+      m04_sleeve_length: "9.8",
+    });
+  });
+  it("handles 'is' and common mis-hearings", () => {
+    expect(parseDictation("sleeve length is 14, waste 30, burst 34", 99).values).toEqual({ m04_sleeve_length: "14", m12_waist_around: "30", m11_bust_around: "34" });
+  });
+  it("never runs past the last field", () => {
+    expect(parseDictation("1 2", 13)).toEqual({ values: { m14_front_length: "1" }, nextIndex: 14 });
   });
 });

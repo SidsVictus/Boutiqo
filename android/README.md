@@ -22,6 +22,7 @@ no R2 code and no secrets. Its only jobs are:
 | Offline banner, offline/error/timeout screens with retry, automatic retry on reconnect/resume | `App.tsx`, `src/StatusScreen.tsx` |
 | Web app URL + HTTPS enforcement | `src/config.ts` |
 | Google sign-in via a secure browser tab (Google blocks it inside WebViews) | `src/oauth.ts`, `App.tsx` (`onMessage`) |
+| Voice input for measurements: Android's speech recognizer, text streamed to the web app | `src/voice.ts`, `App.tsx` (`startVoice`) |
 | Dev-only logging, with query strings and `/track/<token>` redacted | `src/log.ts` |
 
 ## Native features: what is and isn't native
@@ -44,11 +45,24 @@ no R2 code and no secrets. Its only jobs are:
   `/auth/callback?code=…` in the WebView. The PKCE verifier cookie from the
   start of the flow is there, so the session ends up inside the app. There's
   still one auth system (Supabase) and no native auth code.
+- **Voice input** (since 1.1.0): Android's WebView has a
+  `webkitSpeechRecognition` object, but it never returns results, so the web
+  app's mic did nothing in the app. The shell now uses
+  `expo-speech-recognition` (Android's own `SpeechRecognizer`, free). The web
+  app posts `{type: "boutiqo:voice", action: "start"}`. The shell asks for the
+  microphone permission, recognises speech in `en-IN` and sends the text back
+  as `boutiqo:voice` events. The web app does all the parsing and UI
+  (`src/lib/voice/` in the web app). The shell stores no audio, and the
+  recognition stops when the page changes or the app goes to the background.
+  This module isn't in Expo Go, so there the web app shows its keyboard-mic
+  fallback. Use a built APK to test voice.
 - **Downloads**: the web app has no file-download flows (R2 images are shown
   inline via presigned URLs), so there's no native download handling.
-- **Permissions**: `INTERNET`, plus `ACCESS_NETWORK_STATE`/`ACCESS_WIFI_STATE`
-  from NetInfo (offline detection). Camera, microphone, storage, media,
-  location, overlay and vibrate are explicitly blocked in `app.json`.
+- **Permissions**: `INTERNET`, `RECORD_AUDIO` (voice input only; it's asked
+  for the first time the mic is tapped), plus
+  `ACCESS_NETWORK_STATE`/`ACCESS_WIFI_STATE` from NetInfo (offline detection).
+  Camera, storage, media, location, overlay and vibrate are explicitly
+  blocked in `app.json`.
 - `allowBackup` is off, so Android cloud backups can't copy the WebView's
   session cookies off the device.
 
@@ -97,8 +111,9 @@ npm start          # Expo dev server; shows a QR code
 3. Edits to `App.tsx`/`src/` reload instantly. Changes to the web app show up
    when you reload the page (shake the phone, then Reload).
 
-Every native module this app uses (WebView, NetInfo, safe-area, splash screen)
-is bundled in Expo Go, so no custom development build is needed. If you ever
+Every native module this app uses except speech recognition (WebView, NetInfo,
+safe-area, splash screen) is bundled in Expo Go. Voice input needs a built APK.
+Everything else can be tested in Expo Go. If you ever
 add a module that isn't in Expo Go, build a development client with
 `npx eas-cli@latest build --profile development` (after adding a
 `development` profile with `"developmentClient": true` to `eas.json`) and
@@ -189,9 +204,6 @@ cleared, and the app never pins an old version.
   `https://boutiqoo.netlify.app/**` needs to be in Supabase's Redirect URLs;
   matching custom schemes there proved unreliable, which left users signed in
   on the website inside the sign-in tab.
-- **The WhatsApp buttons** in the web app are still placeholders (they don't
-  navigate). Once the web app points them at `https://wa.me/…`, the shell
-  opens WhatsApp with no APK change needed.
 - The web app's `Permissions-Policy: camera=()` header doesn't affect the
   photo picker, which uses the system camera app rather than `getUserMedia`.
 
@@ -211,3 +223,4 @@ Run on a real phone against the build you're about to distribute:
 - [ ] Background for a few minutes → resume → same page, still logged in
 - [ ] Portrait only; status bar and gesture/nav bar don't cover content; small and large screen
 - [ ] Customer tracking link `/track/<token>` opens and shows the order
+- [ ] New order → Voice → mic: Android asks for the microphone once; the mic indicator shows; saying "14 15, chest 36" fills 1, 2 and 10; pausing doesn't stop it; tapping the mic stops it

@@ -12,8 +12,8 @@
 export const OAUTH_MESSAGE_TYPE = "boutiqo:oauth";
 
 /** JS run before every page load, exposing the redirect URL the web app must use. */
-export function bridgeScript(oauthRedirectUrl: string): string {
-  return `window.BoutiqoShell = Object.freeze({ oauthRedirectUrl: ${JSON.stringify(oauthRedirectUrl)} }); true;`;
+export function bridgeScript(oauthRedirectUrl: string, voice = false): string {
+  return `window.BoutiqoShell = Object.freeze({ oauthRedirectUrl: ${JSON.stringify(oauthRedirectUrl)}, voice: ${voice ? "true" : "false"} }); true;`;
 }
 
 /**

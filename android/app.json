@@ -3,7 +3,7 @@
     "name": "Boutiqo",
     "slug": "boutiqo",
     "scheme": "boutiqo",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "backgroundColor": "#fffbfa",
@@ -12,7 +12,7 @@
     ],
     "android": {
       "package": "com.boutiqo.app",
-      "versionCode": 1,
+      "versionCode": 2,
       "adaptiveIcon": {
         "backgroundColor": "#fad3d0",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -21,10 +21,11 @@
       },
       "softwareKeyboardLayoutMode": "resize",
       "predictiveBackGestureEnabled": false,
-      "permissions": [],
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
       "blockedPermissions": [
         "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.READ_MEDIA_IMAGES",
@@ -46,7 +47,18 @@
           "backgroundColor": "#fad3d0"
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Boutiqo uses the microphone only while you dictate measurements.",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox",
+            "com.google.android.as",
+            "com.google.android.tts"
+          ]
+        }
+      ]
     ]
   }
 }
