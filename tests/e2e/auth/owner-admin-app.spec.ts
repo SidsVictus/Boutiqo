@@ -94,7 +94,9 @@ test.describe("Owner app", () => {
         onresult: ((e: unknown) => void) | null = null;
         onerror: ((e: unknown) => void) | null = null;
         onend: (() => void) | null = null;
+        onstart: (() => void) | null = null;
         start() {
+          setTimeout(() => this.onstart?.(), 50);
           setTimeout(() => {
             const result = Object.assign([{ transcript: "sleeve length 14, chest 36 and a half" }], { isFinal: true });
             this.onresult?.({ resultIndex: 0, results: [result] });
@@ -228,6 +230,131 @@ test.describe("Owner app", () => {
     await main.getByRole("button", { name: "Voice" }).click();
     await main.getByRole("button", { name: "Start voice input" }).click();
     await expect(main.getByText("Microphone permission is blocked")).toBeVisible();
+  });
+
+  test("in the Android app, voice uses the native recognizer: restarts after pauses, fills in order and by name", async ({ page, request }) => {
+    await seedOwner(request);
+    await page.addInitScript(() => {
+      // Stand-in for android/App.tsx: answers the page's voice messages with
+      // the events the native recognizer produces.
+      const w = window as unknown as { __posts: string[]; __phrases: string[] };
+      w.__posts = [];
+      w.__phrases = ["14 15", "chest 36 and a half"];
+      const send = (detail: unknown) => window.dispatchEvent(new CustomEvent("boutiqo:voice", { detail }));
+      Object.defineProperty(window, "BoutiqoShell", { value: Object.freeze({ oauthRedirectUrl: "boutiqo://auth-callback", voice: true }) });
+      // Android's WebView has this object, but it never works: must not be used.
+      Object.defineProperty(window, "webkitSpeechRecognition", { value: class { start() { throw new Error("WebView speech must not be used"); } }, configurable: true });
+      Object.defineProperty(window, "ReactNativeWebView", {
+        value: {
+          postMessage(raw: string) {
+            w.__posts.push(raw);
+            const m = JSON.parse(raw);
+            if (m.type !== "boutiqo:voice") return;
+            if (m.action === "start") {
+              setTimeout(() => send({ type: "start" }), 30);
+              const phrase = w.__phrases.shift();
+              if (phrase) {
+                setTimeout(() => send({ type: "result", transcript: phrase.split(" ")[0], isFinal: false }), 60);
+                setTimeout(() => send({ type: "result", transcript: phrase, isFinal: true }), 120);
+                setTimeout(() => send({ type: "error", code: "no-speech", message: "" }), 160);
+                setTimeout(() => send({ type: "end" }), 180); // a pause ends the session, like Android 12
+              }
+            }
+            if (m.action === "stop") setTimeout(() => send({ type: "end" }), 30);
+          },
+        },
+      });
+    });
+    await login(page);
+    await page.waitForURL("**/owner/dashboard");
+    await page.goto("/owner/orders/new");
+    const main = page.locator(".bq-shell-mobile__content");
+    await main.getByRole("button", { name: "Voice" }).click();
+    await main.getByRole("button", { name: "Start voice input" }).click();
+    await expect(main.getByLabel("1. Blouse back length")).toHaveValue("14");
+    await expect(main.getByLabel("2. Full shoulder width")).toHaveValue("15");
+    await expect(main.getByLabel("10. Chest around")).toHaveValue("36.5");
+    await expect(main.locator(".bq-voice-panel__title")).toContainText("Listening");
+    await expect(main.locator(".bq-voice-panel__hint")).toContainText("11. Bust around");
+    await expect(main.locator(".bq-voice-panel__heard")).toContainText("14 15 chest 36 and a half");
+    await main.getByRole("button", { name: "Stop listening" }).click({ force: true });
+    await expect(main.locator(".bq-voice-panel__title")).toContainText("Tap the mic and speak");
+    const posts = (await page.evaluate(() => (window as unknown as { __posts: string[] }).__posts)).map((p) => JSON.parse(p));
+    expect(posts.filter((p) => p.action === "start").length).toBeGreaterThanOrEqual(3); // restarted after each pause
+    expect(posts.every((p) => p.type === "boutiqo:voice" && (p.action !== "start" || p.lang === "en-IN"))).toBe(true);
+    expect(posts.at(-1).action).toBe("stop");
+  });
+
+  test("in the Android app, a permanently denied mic offers the phone's settings", async ({ page, request }) => {
+    await seedOwner(request);
+    await page.addInitScript(() => {
+      const w = window as unknown as { __posts: string[] };
+      w.__posts = [];
+      const send = (detail: unknown) => window.dispatchEvent(new CustomEvent("boutiqo:voice", { detail }));
+      Object.defineProperty(window, "BoutiqoShell", { value: Object.freeze({ oauthRedirectUrl: "boutiqo://auth-callback", voice: true }) });
+      Object.defineProperty(window, "ReactNativeWebView", {
+        value: {
+          postMessage(raw: string) {
+            w.__posts.push(raw);
+            if (JSON.parse(raw).action === "start") {
+              setTimeout(() => send({ type: "error", code: "not-allowed", message: "Microphone permission is off.", canAskAgain: false }), 30);
+              setTimeout(() => send({ type: "end" }), 40);
+            }
+          },
+        },
+      });
+    });
+    await login(page);
+    await page.waitForURL("**/owner/dashboard");
+    await page.goto("/owner/orders/new");
+    const main = page.locator(".bq-shell-mobile__content");
+    await main.getByRole("button", { name: "Voice" }).click();
+    await main.getByRole("button", { name: "Start voice input" }).click();
+    await expect(main.getByText("Microphone permission is blocked")).toBeVisible();
+    await expect(main.getByText("Turn on Microphone for Boutiqo in your phone's settings")).toBeVisible();
+    await main.getByRole("button", { name: "Open phone settings" }).click();
+    const posts = (await page.evaluate(() => (window as unknown as { __posts: string[] }).__posts)).map((p) => JSON.parse(p));
+    expect(posts.at(-1)).toEqual({ type: "boutiqo:voice", action: "open-settings" });
+  });
+
+  test("an app version without native voice explains how to get it (never uses the broken WebView speech)", async ({ page, request }) => {
+    await seedOwner(request);
+    await page.addInitScript(() => {
+      Object.defineProperty(window, "BoutiqoShell", { value: Object.freeze({ oauthRedirectUrl: "exp://x/--/auth-callback" }) });
+      Object.defineProperty(window, "ReactNativeWebView", { value: { postMessage() {} } });
+      Object.defineProperty(window, "webkitSpeechRecognition", { value: class {}, configurable: true });
+    });
+    await login(page);
+    await page.waitForURL("**/owner/dashboard");
+    await page.goto("/owner/orders/new");
+    const main = page.locator(".bq-shell-mobile__content");
+    await main.getByRole("button", { name: "Voice" }).click();
+    await expect(main.getByText("Voice input isn't available here")).toBeVisible();
+    await expect(main.getByText("Install the latest Boutiqo app")).toBeVisible();
+  });
+
+  test("a microphone that never starts is reported instead of pretending to listen", async ({ page, request }) => {
+    await seedOwner(request);
+    await page.addInitScript(() => {
+      class Silent {
+        lang = "";
+        continuous = false;
+        interimResults = false;
+        start() {}
+        stop() {}
+        abort() {}
+      }
+      for (const name of ["SpeechRecognition", "webkitSpeechRecognition"]) Object.defineProperty(window, name, { value: Silent, configurable: true, writable: true });
+    });
+    await login(page);
+    await page.waitForURL("**/owner/dashboard");
+    await page.goto("/owner/orders/new");
+    const main = page.locator(".bq-shell-mobile__content");
+    await main.getByRole("button", { name: "Voice" }).click();
+    await main.getByRole("button", { name: "Start voice input" }).click();
+    await expect(main.locator(".bq-voice-panel__title")).toContainText("Starting the microphone");
+    await expect(main.getByText("The microphone didn't start")).toBeVisible({ timeout: 10_000 });
+    await expect(main.getByRole("button", { name: "Start voice input" })).toBeVisible();
   });
 
   test("voice input falls back clearly where speech recognition doesn't exist (Android app WebView)", async ({ page, request }) => {
@@ -387,5 +514,169 @@ test.describe("Super admin", () => {
     await page.waitForURL("**/owner/dashboard");
     await page.goto("/admin/dashboard");
     await page.waitForURL("**/admin/login");
+  });
+});
+
+test.describe("Super admin roster (no passwords in code)", () => {
+  test("a listed team email becomes an admin on its first verified Google sign-in", async ({ page, request }) => {
+    await mock(request, "config", { googleUser: { email: "sidsvictus@gmail.com", name: "Sids" } });
+    await page.goto("/admin/login");
+    await page.getByRole("button", { name: "Continue with Google" }).click();
+    await page.waitForURL("**/admin/dashboard");
+    const t = await tables(request);
+    const row = t.admins.find((a: { email: string }) => a.email === "sidsvictus@gmail.com");
+    expect(row.role).toBe("owner_admin");
+    expect(row.user_id).toBeTruthy();
+    expect(t.admins.some((a: { email: string }) => a.email === "help.boutiqo@gmail.com")).toBe(true);
+  });
+
+  test("an unverified Google identity is not enough", async ({ page, request }) => {
+    await mock(request, "config", { googleUser: { email: "help.boutiqo@gmail.com", name: "X", verified: false } });
+    await page.goto("/admin/login");
+    await page.getByRole("button", { name: "Continue with Google" }).click();
+    await page.waitForURL(/\/owner\/(register|signup)/);
+    const t = await tables(request);
+    expect(t.admins.find((a: { email: string }) => a.email === "help.boutiqo@gmail.com").user_id ?? null).toBeNull();
+  });
+
+  test("a password account using a listed email can't claim admin", async ({ page, request }) => {
+    await mock(request, "seed", { users: [{ email: "sidsvictus@gmail.com", password: PASSWORD }] });
+    await login(page, "sidsvictus@gmail.com", "/admin/login");
+    await expect(page.getByText("Incorrect email or password")).toBeVisible();
+    const t = await tables(request);
+    expect(t.admins.find((a: { email: string }) => a.email === "sidsvictus@gmail.com").user_id ?? null).toBeNull();
+  });
+
+  test("the old placeholder admins (password was in the repo) are removed and can't log in", async ({ page, request }) => {
+    await mock(request, "seed", {
+      users: [{ email: "admin.owner@boutiqo.dev", password: PASSWORD }],
+      admins: [{ email: "admin.owner@boutiqo.dev", name: "Dev Owner Admin", role: "owner_admin" }],
+    });
+    await login(page, "admin.owner@boutiqo.dev", "/admin/login");
+    await expect(page.getByText("Incorrect email or password")).toBeVisible();
+    const t = await tables(request);
+    expect(t.admins.some((a: { email: string }) => a.email === "admin.owner@boutiqo.dev")).toBe(false);
+    const user = await (await request.get(`${MOCK}/__mock/user?email=admin.owner@boutiqo.dev`)).json();
+    expect(user).toBeNull();
+  });
+});
+
+test.describe("Clickable home, dues list, billing, tracking brand", () => {
+  const day = (offset: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + offset);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+
+  async function seedOrders(request: APIRequestContext) {
+    await seedOwner(request, { customerPhone: "98480 22222" });
+    await mock(request, "seed", {
+      orders: [
+        { ownerEmail: OWNER, customerName: "Aisha Fatima", due_date: day(-2), total_amount: 1000, advance_amount: 200, garment_type: "Blouse" },
+        { ownerEmail: OWNER, customerName: "Aisha Fatima", due_date: day(3), total_amount: 500, garment_type: "Lehenga", stage: "ready" },
+        { ownerEmail: OWNER, customerName: "Aisha Fatima", due_date: day(20), total_amount: 800, paid: true, garment_type: "Kurti" },
+        { ownerEmail: OWNER, customerName: "Aisha Fatima", due_date: day(-10), total_amount: 300, paid: true, stage: "delivered" },
+      ],
+    });
+  }
+
+  test("home tiles open the matching list; the calendar lists dues for all dates", async ({ page, request }) => {
+    await seedOrders(request);
+    await login(page);
+    await page.waitForURL("**/owner/dashboard");
+    const main = page.locator(".bq-shell-mobile__content");
+
+    await expect(main.getByRole("link", { name: /Open orders\s*3/ })).toBeVisible();
+    await expect(main.getByRole("link", { name: /Outstanding\s*₹1,300/ })).toBeVisible();
+    // Due this week: overdue + ready ones, never delivered.
+    await expect(main.locator(".bq-order-row")).toHaveCount(2);
+
+    await main.getByRole("link", { name: /Open orders/ }).click();
+    await page.waitForURL("**/owner/calendar?view=open");
+    await expect(main.getByRole("button", { name: /^Open/ })).toHaveAttribute("aria-pressed", "true");
+    await expect(main.locator(".bq-order-row")).toHaveCount(3); // all open orders, every date
+    await expect(main.getByText("3 orders · ₹1,300 balance due")).toBeVisible();
+
+    await main.getByRole("button", { name: /^Overdue/ }).click();
+    await expect(main.locator(".bq-order-row")).toHaveCount(1);
+    await expect(main.locator(".bq-order-row")).toContainText("Blouse");
+
+    // Tapping a day on the calendar narrows the list to that day (local date, not UTC).
+    await main.getByRole("button", { name: /^All/ }).click();
+    const d3 = new Date();
+    d3.setDate(d3.getDate() + 3);
+    if (d3.getMonth() !== new Date().getMonth()) await main.getByRole("button", { name: "Next month" }).click();
+    await main.getByRole("button", { name: new RegExp(`^${d3.getDate()}: 1 due`) }).click();
+    await expect(main.locator(".bq-order-row")).toHaveCount(1);
+    await expect(main.locator(".bq-order-row")).toContainText("Lehenga");
+    await main.getByRole("button", { name: "Show all dates" }).click();
+    await expect(main.locator(".bq-order-row")).toHaveCount(4);
+
+    // An order row opens the order.
+    await main.locator(".bq-order-row", { hasText: "Lehenga" }).click();
+    await page.waitForURL(/\/owner\/orders\/[^/]+$/);
+
+    // Overdue tile → overdue view; Outstanding → billing.
+    await page.goto("/owner/dashboard");
+    await main.getByRole("link", { name: /^Overdue/ }).click();
+    await page.waitForURL("**/owner/calendar?view=overdue");
+    await expect(main.locator(".bq-order-row")).toHaveCount(1);
+    await page.goto("/owner/dashboard");
+    await main.getByRole("link", { name: /Customers/ }).click();
+    await page.waitForURL("**/owner/customers");
+    await page.goto("/owner/dashboard");
+    await main.getByRole("link", { name: /Outstanding/ }).click();
+    await page.waitForURL("**/owner/billing");
+    await expect(main.getByText("₹1,300").first()).toBeVisible();
+    await main.locator("a.bq-order-row").first().click();
+    await page.waitForURL(/\/owner\/orders\/[^/]+$/);
+  });
+
+  test("customer page: call, WhatsApp, and New order preselects the customer", async ({ page, request }) => {
+    await seedOrders(request);
+    await login(page);
+    await page.waitForURL("**/owner/dashboard");
+    await page.goto("/owner/customers");
+    const main = page.locator(".bq-shell-mobile__content");
+    await main.getByRole("link", { name: /Aisha Fatima/ }).click();
+    await expect(main.getByRole("link", { name: /98480 22222/ })).toHaveAttribute("href", "tel:9848022222");
+    await expect(main.getByRole("link", { name: "WhatsApp" })).toHaveAttribute("href", /^https:\/\/wa\.me\/919848022222/);
+    await main.getByRole("link", { name: "New order" }).click();
+    await page.waitForURL(/\/owner\/orders\/new\?customer=/);
+    await main.getByRole("tab", { name: /Work details/ }).click();
+    await expect(main.getByLabel(/^Customer/)).toHaveValue(/.+/);
+  });
+
+  test("tracking page shows the Boutiqo brand and the boutique name", async ({ page, request }) => {
+    await seedOrders(request);
+    const t = await tables(request);
+    await page.goto(`/track/${t.orders[0].tracking_token}`);
+    const brand = page.locator(".bq-track-brand");
+    await expect(brand).toContainText("Boutiqo");
+    await expect(brand).toContainText("Order tracking · Lotus Boutique");
+    await expect(brand.locator("img")).toHaveJSProperty("complete", true);
+    expect(await brand.locator("img").evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
+  });
+});
+
+test.describe("Super admin dashboard tiles", () => {
+  test("tiles open the boutique list with the matching filter", async ({ page, request }) => {
+    await mock(request, "seed", {
+      users: [{ email: "ops@boutiqo.dev", password: PASSWORD }, { email: OWNER, password: PASSWORD }, { email: "b@gmail.com", password: PASSWORD }],
+      admins: [{ email: "ops@boutiqo.dev", name: "Ops", role: "owner_admin" }],
+      boutiques: [
+        { ownerEmail: OWNER, name: "Lotus Boutique", owner_name: "Anitha", category: "Tailoring", area: "A" },
+        { ownerEmail: "b@gmail.com", name: "Held Boutique", owner_name: "B", category: "Tailoring", area: "B", status: "on_hold" },
+      ],
+    });
+    await login(page, "ops@boutiqo.dev", "/admin/login");
+    await page.waitForURL("**/admin/dashboard");
+    const main = page.locator(".bq-shell-mobile__content");
+    await main.getByRole("link", { name: /On hold \/ disabled/ }).click();
+    await page.waitForURL("**/admin/boutiques?status=inactive");
+    await expect(main.getByText("Held Boutique")).toBeVisible();
+    await expect(main.getByText("Lotus Boutique")).toHaveCount(0);
+    await main.getByRole("button", { name: "All", exact: true }).click();
+    await expect(main.getByText("Lotus Boutique")).toBeVisible();
   });
 });
