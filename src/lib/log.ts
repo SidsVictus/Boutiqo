@@ -17,7 +17,12 @@ export type SecurityEventKind =
   | "admin_suspended_login_blocked"
   | "authorization_rejected"
   | "upload_failed"
-  | "auth_callback_failed";
+  | "auth_callback_failed"
+  | "admin_roster_sync_failed"
+  | "placeholder_admin_removed"
+  | "super_admins_added"
+  | "admin_claimed_via_google"
+  | "admin_claim_failed";
 
 export function logSecurityEvent(kind: SecurityEventKind, details: Record<string, unknown>): void {
   console.error(
