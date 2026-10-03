@@ -31,7 +31,7 @@ reset();
 const b64url = (buf) => Buffer.from(buf).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 const s256 = (verifier) => b64url(createHash("sha256").update(verifier).digest());
 
-function makeUser({ email, password = null, confirmed = true, name, provider = "email" }) {
+function makeUser({ email, password = null, confirmed = true, name, provider = "email", verified = true }) {
   const id = randomUUID();
   const now = new Date().toISOString();
   const user = {
@@ -44,7 +44,7 @@ function makeUser({ email, password = null, confirmed = true, name, provider = "
     confirmed_at: confirmed ? now : null,
     app_metadata: { provider, providers: [provider] },
     user_metadata: name ? { full_name: name, name, email } : {},
-    identities: [{ id: randomUUID(), user_id: id, identity_id: randomUUID(), provider, identity_data: { email, sub: id } }],
+    identities: [{ id: randomUUID(), user_id: id, identity_id: randomUUID(), provider, identity_data: provider === "google" ? { email, sub: id, email_verified: verified } : { email, sub: id } }],
     created_at: now,
     updated_at: now,
   };
@@ -238,8 +238,13 @@ async function handleAuth(req, res, url, path) {
       return res.end();
     }
     // Google consent is skipped: straight back with a PKCE code, as Supabase does after Google.
-    const { email, name } = state.config.googleUser;
-    const user = state.users.get(email.toLowerCase()) ?? makeUser({ email, name, provider: "google" });
+    const { email, name, verified = true } = state.config.googleUser;
+    let user = state.users.get(email.toLowerCase());
+    if (!user) user = makeUser({ email, name, provider: "google", verified });
+    else if (!user.identities.some((i) => i.provider === "google")) {
+      // Supabase links a Google sign-in to the existing same-email user.
+      user.identities.push({ id: randomUUID(), user_id: user.id, identity_id: randomUUID(), provider: "google", identity_data: { email, sub: user.id, email_verified: verified } });
+    }
     res.writeHead(302, { Location: withParams(redirectTo, { code: newCode(user.id, q.get("code_challenge")) }) });
     return res.end();
   }
@@ -250,6 +255,11 @@ async function handleAuth(req, res, url, path) {
     if (state.users.has(email)) return authError(res, 422, "email_exists", "A user with this email address has already been registered");
     const user = makeUser({ email, password: body.password ?? null, confirmed: !!body.email_confirm });
     return json(res, 200, publicUser(user));
+  }
+  if (path.startsWith("/admin/users/") && req.method === "GET") {
+    if (!isServiceRole(req)) return authError(res, 403, "not_admin", "User not allowed");
+    const u = userById(path.split("/").pop());
+    return u ? json(res, 200, publicUser(u)) : authError(res, 404, "user_not_found", "User not found");
   }
   if (path.startsWith("/admin/users/") && req.method === "DELETE") {
     const id = path.split("/").pop();
@@ -268,6 +278,16 @@ function filterRows(rows, params) {
     let m = /^eq\.(.*)$/.exec(value);
     if (m) {
       out = out.filter((r) => String(r[key]) === m[1]);
+      continue;
+    }
+    if (value === "is.null") {
+      out = out.filter((r) => r[key] === null || r[key] === undefined);
+      continue;
+    }
+    m = /^in\.\((.*)\)$/.exec(value);
+    if (m) {
+      const set = new Set(m[1].split(",").map((v) => v.replace(/^"|"$/g, "")));
+      out = out.filter((r) => set.has(String(r[key])));
       continue;
     }
     m = /^ilike\.(.*)$/.exec(value);
@@ -348,13 +368,14 @@ async function handleRest(req, res, url, path) {
   if (req.method === "GET" || req.method === "HEAD") return reply(filterRows(visible, url.searchParams));
 
   if (req.method === "POST") {
-    const body = await readBody(req);
+    const raw = await readBody(req);
+    const bodies = Array.isArray(raw) ? raw : [raw]; // PostgREST bulk insert
     const own = user && state.tables.boutiques.find((b) => b.owner_user_id === user.id);
-    const allowed = service || (OWNED_TABLES.has(table) && own && body.boutique_id === own.id && own.status === "active");
+    const allowed = service || bodies.every((body) => OWNED_TABLES.has(table) && own && body.boutique_id === own.id && own.status === "active");
     if (!allowed) return json(res, 403, { code: "42501", message: "new row violates row-level security policy" });
-    const row = newRow(table, body);
-    state.tables[table].push(row);
-    return reply([row], 201);
+    const rows = bodies.map((body) => newRow(table, body));
+    state.tables[table].push(...rows);
+    return reply(rows, 201);
   }
 
   if (req.method === "PATCH") {
@@ -371,7 +392,12 @@ async function handleRest(req, res, url, path) {
     for (const t of targets) Object.assign(t, body, { updated_at: new Date().toISOString() });
     return reply(targets);
   }
-  if (req.method === "DELETE") return json(res, 403, { code: "42501", message: "permission denied" });
+  if (req.method === "DELETE") {
+    if (!service) return json(res, 403, { code: "42501", message: "permission denied" });
+    const doomed = new Set(filterRows(visible, url.searchParams));
+    state.tables[table] = state.tables[table].filter((r) => !doomed.has(r));
+    return reply([...doomed]);
+  }
   return reply([]);
 }
 
@@ -437,6 +463,14 @@ createServer(async (req, res) => {
         const rest = { ...c };
         delete rest.ownerEmail;
         state.tables.customers.push(newRow("customers", { ...rest, boutique_id: b.id }));
+      }
+      for (const o of body.orders ?? []) {
+        const b = state.tables.boutiques.find((x) => x.email === o.ownerEmail);
+        const c = state.tables.customers.find((x) => x.boutique_id === b.id && x.name === o.customerName);
+        const rest = { ...o };
+        delete rest.ownerEmail;
+        delete rest.customerName;
+        state.tables.orders.push(newRow("orders", { stage: "received", paid: false, advance_amount: 0, garment_type: "Blouse", ...rest, boutique_id: b.id, customer_id: c.id }));
       }
       return json(res, 200, created);
     }

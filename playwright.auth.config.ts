@@ -36,6 +36,8 @@ export default defineConfig({
         NEXT_PUBLIC_SUPABASE_URL: MOCK,
         NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon-key",
         SUPABASE_SERVICE_ROLE_KEY: "service-role-key",
+        // Re-run the admin roster sync on every sign-in (state resets per test).
+        ADMIN_ROSTER_SYNC_TTL_MS: "0",
         // Photo storage: the mock's S3 stand-in (rejects checksum-mismatched PUTs like R2).
         R2_ACCOUNT_ID: "test",
         R2_ACCESS_KEY_ID: "test-key",
