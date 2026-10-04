@@ -31,8 +31,6 @@
   top: 0;
   z-index: 20;
   padding-top: env(safe-area-inset-top);
-  background: var(--surface-card);
-  border-bottom: 1px solid var(--line-hairline);
 }
 .bq-appbar {
   display: flex;
@@ -40,7 +38,7 @@
   justify-content: space-between;
   gap: var(--space-3);
   padding: 10px var(--space-4) 12px;
-  background: var(--surface-page);
+  background: transparent;
 }
 .bq-appbar__title {
   font-family: var(--font-display);
@@ -57,8 +55,10 @@
 .bq-tabbar {
   display: flex;
   height: 60px;
-  background: var(--surface-card);
-  border-bottom: 1px solid var(--line-hairline);
+  background: transparent;
+  /* A hairline that fades out at both ends instead of a hard rule. */
+  border-bottom: 1px solid transparent;
+  border-image: linear-gradient(90deg, transparent, rgba(91, 13, 39, 0.1) 12%, rgba(91, 13, 39, 0.1) 88%, transparent) 1;
 }
 .bq-tabbar__item {
   position: relative;
@@ -195,8 +195,6 @@
   justify-content: space-between;
   gap: var(--space-4);
   padding: 20px 32px;
-  background: var(--surface-card);
-  border-bottom: 1px solid var(--line-hairline);
 }
 .bq-topbar__title {
   font-family: var(--font-display);
@@ -774,7 +772,7 @@
 .bq-load-legend__swatch {
   width: 12px;
   height: 12px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 
 /* ---------- Stage update rows ---------- */
@@ -1154,4 +1152,93 @@
 .bq-voice-mic[data-starting="true"] {
   opacity: 0.75;
   animation: bq-voice-breathe 1s ease-in-out infinite;
+}
+
+
+/* ---------- Frosted glass bars ----------
+   The sticky top bars (web topbar, phone tabs + title bar) are frosted glass:
+   content scrolls underneath, blurred and slightly brightened. The layers are
+   a warm milky tint so it reads as Boutiqo blush rather than flat grey, a
+   specular highlight along the top edge, a faint warm hairline at the bottom,
+   and a soft shadow that only appears once the page has scrolled (Chrome
+   scroll-driven animation; elsewhere it stays at rest, which also looks right).
+   Solid fallback where backdrop-filter is unsupported or the user asked for
+   reduced transparency. */
+.bq-topbar,
+.bq-mobile-top {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.88) 0%, rgba(255, 249, 248, 0.76) 100%);
+  -webkit-backdrop-filter: blur(26px) saturate(185%) brightness(1.04);
+  backdrop-filter: blur(26px) saturate(185%) brightness(1.04);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(91, 13, 39, 0.07),
+    0 1px 0 rgba(255, 255, 255, 0.5);
+  isolation: isolate;
+}
+/* Subtle grain-free sheen: a diagonal light sweep, barely visible. */
+.bq-topbar::before,
+.bq-mobile-top::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgba(255, 255, 255, 0.55) 0%, transparent 45%),
+    radial-gradient(90% 120% at 100% 0%, rgba(250, 211, 208, 0.35) 0%, transparent 55%);
+  mix-blend-mode: soft-light;
+}
+@supports (animation-timeline: scroll()) {
+  .bq-topbar,
+  .bq-mobile-top {
+    animation: bq-glass-elevate linear both;
+    animation-timeline: scroll(root block);
+    animation-range: 0 72px;
+  }
+}
+@keyframes bq-glass-elevate {
+  from {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      inset 0 -1px 0 rgba(91, 13, 39, 0.05),
+      0 0 0 rgba(43, 4, 17, 0);
+  }
+  to {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      inset 0 -1px 0 rgba(91, 13, 39, 0.09),
+      0 10px 30px -14px rgba(43, 4, 17, 0.22),
+      0 2px 6px -2px rgba(43, 4, 17, 0.06);
+  }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .bq-topbar,
+  .bq-mobile-top {
+    background: var(--surface-card);
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .bq-topbar,
+  .bq-mobile-top {
+    background: var(--surface-card);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* The tracking page's brand bar floats over the carpet photo: same glass. */
+.bq-track-brand {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(255, 249, 248, 0.64));
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  backdrop-filter: blur(18px) saturate(180%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 12px 32px -16px rgba(43, 4, 17, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+}
+.bq-track-footer {
+  -webkit-backdrop-filter: blur(14px) saturate(170%);
+  backdrop-filter: blur(14px) saturate(170%);
+  background: rgba(255, 255, 255, 0.72);
 }
