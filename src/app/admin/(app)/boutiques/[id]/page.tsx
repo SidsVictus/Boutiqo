@@ -8,6 +8,8 @@ import { Card } from "@/components/ds/Card";
 import { Badge } from "@/components/ds/Badge";
 import { Button } from "@/components/ds/Button";
 import { formatLongDate } from "@/lib/calc/format";
+import { Send } from "@/components/app/icons";
+import { PARTNER_SUBJECT, gmailComposeUrl, isSafeEmail, mailtoUrl } from "@/lib/contact/email";
 import type { Boutique, Order } from "@/lib/supabase/types";
 
 const STATUS_TONE: Record<Boutique["status"], "success" | "warning" | "neutral"> = {
@@ -33,7 +35,7 @@ export default function AdminBoutiqueDetailPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 640 }}>
-      <Card title={boutique.name} meta={`${boutique.area} · ${boutique.category}`} action={<Badge tone={STATUS_TONE[boutique.status]}>{boutique.status.replace("_", " ")}</Badge>}>
+      <Card title={boutique.name} meta={[boutique.area, boutique.category].filter(Boolean).join(" · ")} action={<Badge tone={STATUS_TONE[boutique.status]}>{boutique.status.replace("_", " ")}</Badge>}>
         <div className="bq-g2" style={{ marginTop: 8, fontSize: 16 }}>
           <span>Owner: {boutique.owner_name}</span>
           <span>Email: {boutique.email}</span>
@@ -43,6 +45,16 @@ export default function AdminBoutiqueDetailPage() {
           <span>Orders: {orders.length}</span>
         </div>
       </Card>
+      {isSafeEmail(boutique.email) ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <Button as="a" href={gmailComposeUrl(boutique.email, PARTNER_SUBJECT)} target="_blank" rel="noopener noreferrer" iconLeft={<Send size={16} />} block>
+            Contact boutique
+          </Button>
+          <a href={mailtoUrl(boutique.email, PARTNER_SUBJECT)} style={{ fontSize: 15, textAlign: "center" }}>
+            Not using Gmail? Open in your mail app
+          </a>
+        </div>
+      ) : null}
       <Button as="a" href={`/admin/boutiques/${boutique.id}/access`} variant="secondary">
         Manage access
       </Button>

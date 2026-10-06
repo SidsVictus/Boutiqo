@@ -44,6 +44,9 @@ export function hasVerifiedGoogleIdentity(user: Pick<User, "identities">, email:
   });
 }
 
+/** Dev-seed boutique owners (scripts/seed.ts), same public password. */
+export const DEMO_OWNER_EMAILS: ReadonlyArray<string> = ["owner1@boutiqo.dev", "owner2@boutiqo.dev"];
+
 let rosterSync: Promise<void> | null = null;
 let rosterSyncedAt = 0;
 // Re-checked at most this often per server instance (tests set 0).
@@ -68,6 +71,7 @@ export function syncAdminRoster(): Promise<void> {
 
 async function doSync(): Promise<void> {
   const db = createSupabaseAdminClient();
+  await removeDemoBoutiques(db);
 
   const { data: placeholders, error: phError } = await db.from("admins").select("id, user_id, email").in("email", [...PLACEHOLDER_ADMIN_EMAILS]);
   if (phError) throw phError;
@@ -115,5 +119,40 @@ export async function claimAdminRow(userId: string): Promise<void> {
     if (!linkError) logSecurityEvent("admin_claimed_via_google", { userId });
   } catch (err) {
     logSecurityEvent("admin_claim_failed", { userId, reason: err instanceof Error ? err.message : String(err) });
+  }
+}
+
+/**
+ * Deletes the seed script's demo boutiques ("Meera Boutique", "Silk Story")
+ * with everything they own, and their owners' auth users. Matched only by the
+ * two @boutiqo.dev seed emails, so real boutiques are never touched.
+ * Order matters: orders → customers (orders.customer_id is ON DELETE RESTRICT)
+ * → files → boutique → auth user. Stored photos are removed best-effort.
+ */
+async function removeDemoBoutiques(db: ReturnType<typeof createSupabaseAdminClient>): Promise<void> {
+  const { data: demos, error } = await db.from("boutiques").select("id, name, owner_user_id, email").in("email", [...DEMO_OWNER_EMAILS]);
+  if (error) throw error;
+  for (const b of demos ?? []) {
+    const { data: files } = await db.from("files").select("object_key").eq("boutique_id", b.id);
+    for (const step of [
+      () => db.from("boutiques").update({ logo_file_id: null }).eq("id", b.id),
+      () => db.from("orders").delete().eq("boutique_id", b.id),
+      () => db.from("customers").delete().eq("boutique_id", b.id),
+      () => db.from("files").delete().eq("boutique_id", b.id),
+      () => db.from("boutiques").delete().eq("id", b.id),
+    ]) {
+      const { error: stepError } = await step();
+      if (stepError) throw stepError;
+    }
+    for (const f of files ?? []) {
+      try {
+        const { deleteObject } = await import("@/lib/r2");
+        await deleteObject(String(f.object_key));
+      } catch {
+        // storage not configured or already gone
+      }
+    }
+    if (b.owner_user_id) await db.auth.admin.deleteUser(b.owner_user_id);
+    logSecurityEvent("demo_boutique_removed", { name: b.name });
   }
 }

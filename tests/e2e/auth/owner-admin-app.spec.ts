@@ -277,6 +277,8 @@ test.describe("Owner app", () => {
     await expect(main.locator(".bq-voice-panel__title")).toContainText("Listening");
     await expect(main.locator(".bq-voice-panel__hint")).toContainText("11. Bust around");
     await expect(main.locator(".bq-voice-panel__heard")).toContainText("14 15 chest 36 and a half");
+    // Each pause ended the native session; the page started it again each time.
+    await expect.poll(async () => (await page.evaluate(() => (window as unknown as { __posts: string[] }).__posts)).filter((p) => p.includes('"start"')).length).toBeGreaterThanOrEqual(3);
     await main.getByRole("button", { name: "Stop listening" }).click({ force: true });
     await expect(main.locator(".bq-voice-panel__title")).toContainText("Tap the mic and speak");
     const posts = (await page.evaluate(() => (window as unknown as { __posts: string[] }).__posts)).map((p) => JSON.parse(p));
@@ -678,5 +680,50 @@ test.describe("Super admin dashboard tiles", () => {
     await expect(main.getByText("Lotus Boutique")).toHaveCount(0);
     await main.getByRole("button", { name: "All", exact: true }).click();
     await expect(main.getByText("Lotus Boutique")).toBeVisible();
+  });
+});
+
+test.describe("Demo data cleanup and contacting a boutique", () => {
+  test("the seed script's demo boutiques are deleted with their data; real ones stay", async ({ page, request }) => {
+    await mock(request, "seed", {
+      users: [{ email: "owner1@boutiqo.dev", password: PASSWORD }, { email: OWNER, password: PASSWORD }],
+      boutiques: [
+        { ownerEmail: "owner1@boutiqo.dev", name: "Meera Boutique", owner_name: "Meera", category: "T", area: "Banjara Hills" },
+        { ownerEmail: OWNER, name: "Lotus Boutique", owner_name: "Anitha", category: "T", area: "A" },
+      ],
+      customers: [{ ownerEmail: "owner1@boutiqo.dev", name: "Demo Customer" }, { ownerEmail: OWNER, name: "Real Customer" }],
+    });
+    await mock(request, "seed", { orders: [{ ownerEmail: "owner1@boutiqo.dev", customerName: "Demo Customer", due_date: "2099-01-01", total_amount: 10 }] });
+    await login(page); // any sign-in runs the cleanup
+    await page.waitForURL("**/owner/dashboard");
+    const t = await tables(request);
+    expect(t.boutiques.map((b: { name: string }) => b.name)).toEqual(["Lotus Boutique"]);
+    expect(t.customers.map((c: { name: string }) => c.name)).toEqual(["Real Customer"]);
+    expect(t.orders).toHaveLength(0);
+    expect(await (await request.get(`${MOCK}/__mock/user?email=owner1@boutiqo.dev`)).json()).toBeNull();
+  });
+
+  test("admin: Contact boutique opens Gmail compose in a new tab with the boutique's email and subject", async ({ page, request }) => {
+    await mock(request, "seed", {
+      users: [{ email: "ops@boutiqo.dev", password: PASSWORD }, { email: OWNER, password: PASSWORD }],
+      admins: [{ email: "ops@boutiqo.dev", name: "Ops", role: "owner_admin" }],
+      boutiques: [{ ownerEmail: OWNER, name: "777", owner_name: "Siddarth Ram", category: "Jss", area: null }],
+    });
+    await login(page, "ops@boutiqo.dev", "/admin/login");
+    await page.waitForURL("**/admin/dashboard");
+    await page.goto("/admin/boutiques");
+    const main = page.locator(".bq-shell-mobile__content");
+    await main.getByRole("link", { name: /777/ }).click();
+    await expect(main.getByText("Jss", { exact: true })).toBeVisible(); // no "null ·"
+    const contact = main.getByRole("link", { name: "Contact boutique" });
+    await expect(contact).toHaveAttribute("target", "_blank");
+    const href = new URL((await contact.getAttribute("href"))!);
+    expect(href.hostname).toBe("mail.google.com");
+    expect(href.searchParams.get("to")).toBe(OWNER);
+    expect(href.searchParams.get("su")).toBe("Hey boutiqo partner, this is an important message.");
+    await page.context().route("https://mail.google.com/**", (r) => r.fulfill({ body: "gmail" }));
+    const [tab] = await Promise.all([page.context().waitForEvent("page"), contact.click()]);
+    expect(tab.url()).toContain("mail.google.com/mail/?view=cm");
+    await expect(main.getByRole("link", { name: /Open in your mail app/ })).toHaveAttribute("href", `mailto:${OWNER}?subject=Hey%20boutiqo%20partner%2C%20this%20is%20an%20important%20message.`);
   });
 });
