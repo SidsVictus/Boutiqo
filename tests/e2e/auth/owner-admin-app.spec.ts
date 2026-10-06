@@ -853,3 +853,101 @@ test.describe("Android app: full screen", () => {
     await expect(card.getByRole("link", { name: "Sign in to an existing boutique" })).toHaveAttribute("href", "/owner/login");
   });
 });
+
+test.describe("Notifications and announcements", () => {
+  const bell = (page: Page) => page.locator(".bq-shell-mobile").getByRole("button", { name: /^Notifications/ });
+
+  test("owner: activity shows in the bell with an unread badge; tapping opens the record; seen state is saved", async ({ page, request }) => {
+    await seedOwner(request);
+    await login(page);
+    await page.waitForURL("**/owner/dashboard");
+    const res = await page.request.post("/api/customers", { data: { name: "Kavya Rao", phone: "" } });
+    expect(res.ok()).toBeTruthy();
+    const customer = (await res.json()).data;
+
+    await page.reload();
+    await expect(bell(page)).toHaveAccessibleName("Notifications, 1 new");
+    await bell(page).click();
+    const panel = page.locator(".bq-shell-mobile").getByRole("dialog", { name: "Notifications" });
+    await expect(panel).toContainText("Added your 2nd customer: Kavya Rao"); // Aisha (seeded) is the 1st
+    await panel.getByRole("button", { name: /Kavya Rao/ }).click();
+    await page.waitForURL(`**/owner/customers/${customer.id}`);
+    await expect(bell(page)).toHaveAccessibleName("Notifications");
+
+    await page.reload(); // stays read
+    await expect(bell(page)).toHaveAccessibleName("Notifications");
+  });
+
+  test("admin announces from Boutiques; every boutique owner gets it and can open the message", async ({ page, browser, request }) => {
+    await mock(request, "seed", {
+      users: [{ email: "ops@boutiqo.dev", password: PASSWORD }, { email: OWNER, password: PASSWORD }, { email: "b2@gmail.com", password: PASSWORD }],
+      admins: [{ email: "ops@boutiqo.dev", name: "Sids", role: "owner_admin" }],
+      boutiques: [
+        { ownerEmail: OWNER, name: "Lotus Boutique", owner_name: "Anitha", category: "T", area: "A" },
+        { ownerEmail: "b2@gmail.com", name: "Rose", owner_name: "Ram", category: "T", area: "B" },
+      ],
+    });
+    await login(page, "ops@boutiqo.dev", "/admin/login");
+    await page.waitForURL("**/admin/dashboard");
+    await page.goto("/admin/boutiques");
+    const main = page.locator(".bq-shell-mobile__content");
+    await main.getByRole("button", { name: "Announce" }).click();
+    const dlg = page.getByRole("dialog", { name: "New announcement" });
+    await dlg.getByRole("button", { name: "Send to all boutiques" }).click();
+    await expect(dlg.getByText("Add both a heading and a message.")).toBeVisible();
+    await dlg.getByLabel(/^Heading/).fill("Short maintenance tonight");
+    await dlg.getByLabel(/^Message/).fill("Boutiqo will be unavailable from 11:00 to 11:30 pm.\nYour data is safe.");
+    await dlg.getByRole("button", { name: "Send to all boutiques" }).click();
+    await expect(page.getByText("Announcement sent to 2 boutiques.")).toBeVisible();
+    await expect(dlg).toBeHidden();
+    // Admin's own log
+    await bell(page).click();
+    await expect(page.locator(".bq-shell-mobile").getByRole("dialog", { name: "Notifications" })).toContainText("Announcement sent by Sids: Short maintenance tonight");
+
+    for (const email of [OWNER, "b2@gmail.com"]) {
+      const ctx = await browser.newContext({ ...(await import("@playwright/test")).devices["Pixel 7"], baseURL: "http://localhost:3210" });
+      const p = await ctx.newPage();
+      await login(p, email);
+      await p.waitForURL("**/owner/dashboard");
+      await expect(bell(p)).toHaveAccessibleName(/Notifications, \d+ new/);
+      await bell(p).click();
+      const panel = p.locator(".bq-shell-mobile").getByRole("dialog", { name: "Notifications" });
+      await expect(panel).toContainText("Announcement");
+      await panel.getByRole("button", { name: /Short maintenance tonight/ }).click();
+      const read = p.getByRole("dialog", { name: "Short maintenance tonight" });
+      await expect(read).toContainText("Boutiqo will be unavailable from 11:00 to 11:30 pm.");
+      await expect(read).toContainText("Your data is safe.");
+      await ctx.close();
+    }
+  });
+
+  test("viewer admins can't announce (button disabled, API refuses)", async ({ page, request }) => {
+    await mock(request, "seed", {
+      users: [{ email: "viewer@boutiqo.dev", password: PASSWORD }],
+      admins: [{ email: "viewer@boutiqo.dev", name: "Vee", role: "viewer" }],
+    });
+    await login(page, "viewer@boutiqo.dev", "/admin/login");
+    await page.waitForURL("**/admin/dashboard");
+    await page.goto("/admin/boutiques");
+    await expect(page.locator(".bq-shell-mobile__content").getByRole("button", { name: "Announce" })).toBeDisabled();
+    const res = await page.request.post("/api/admin/announcements", { data: { title: "x", body: "y" } });
+    expect(res.status()).toBe(403);
+    expect((await tables(request)).announcements).toHaveLength(0);
+  });
+
+  test("owners can't post announcements or fake notifications", async ({ page, request }) => {
+    await seedOwner(request);
+    await login(page);
+    await page.waitForURL("**/owner/dashboard");
+    expect((await page.request.post("/api/admin/announcements", { data: { title: "x", body: "y" } })).status()).toBe(403);
+  });
+
+  test("before the database migration is applied, the bell simply stays hidden", async ({ page, request }) => {
+    await seedOwner(request);
+    await page.route("**/rest/v1/notifications**", (r) => r.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ code: "PGRST205", message: "Could not find the table 'public.notifications' in the schema cache" }) }));
+    await login(page);
+    await page.waitForURL("**/owner/dashboard");
+    await expect(page.locator(".bq-shell-mobile .bq-appbar__title")).toHaveText("Home");
+    await expect(bell(page)).toHaveCount(0);
+  });
+});

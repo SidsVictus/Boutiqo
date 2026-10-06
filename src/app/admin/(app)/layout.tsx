@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { AppShell, type NavItem } from "@/components/app/AppShell";
 import { useSession } from "@/lib/session/SessionContext";
 import { List, Store, Shield } from "@/components/app/icons";
+import { AnnounceButton } from "@/components/app/AnnounceButton";
 import { Button } from "@/components/ds/Button";
 import { ADMIN_ROLE_SCOPE } from "@/lib/data/admins";
 
@@ -59,9 +60,12 @@ export default function AdminAppLayout({ children }: { children: React.ReactNode
       signOutHref="/admin/signout"
       headerAction={
         pathname === "/admin/boutiques" ? (
-          <Button as="a" href="/admin/boutiques/new" variant="accent" disabled={!canAdd} title={canAdd ? undefined : "Your role cannot add a boutique"}>
-            Add boutique
-          </Button>
+          <>
+            <AnnounceButton disabled={!canAdd} />
+            <Button as="a" href="/admin/boutiques/new" variant="accent" disabled={!canAdd} title={canAdd ? undefined : "Your role cannot add a boutique"}>
+              Add boutique
+            </Button>
+          </>
         ) : undefined
       }
     >
