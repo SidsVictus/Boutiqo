@@ -1,18 +1,21 @@
 /**
- * The Boutiqo brand mark (the "b." monogram, same artwork as the app icon and
- * browser-tab favicon), shown beside the "boutiqo" wordmark text that each
- * call site sets itself. `onDark` adds a light ring so it reads on dark bars.
+ * The Boutiqo brand mark: the "b" with its pink dot on a transparent
+ * background (same artwork as the browser-tab icon), shown beside the
+ * "Boutiqo" wordmark text that each call site sets. `onDark` uses the
+ * blush-pink "b" so it stays visible on the plum sidebar.
  */
-export function Logo({ size = 28, onDark }: { size?: number; onDark?: boolean }) {
+export function Logo({ size = 30, onDark }: { size?: number; onDark?: boolean }) {
+  const height = Math.round(size * 1.15);
+  const width = Math.round((height * 176) / 256);
   return (
     // eslint-disable-next-line @next/next/no-img-element -- tiny static brand mark; next/image adds nothing here.
     <img
-      src="/brand/boutiqo-mark.png"
+      src={onDark ? "/brand/boutiqo-b-light.png" : "/brand/boutiqo-b.png"}
       alt=""
       aria-hidden="true"
-      width={size}
-      height={size}
-      style={{ width: size, height: size, borderRadius: "50%", flex: "none", boxShadow: onDark ? "0 0 0 1.5px rgba(255,255,255,0.6)" : undefined }}
+      width={width}
+      height={height}
+      style={{ width, height, flex: "none", display: "block" }}
     />
   );
 }

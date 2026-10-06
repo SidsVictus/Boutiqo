@@ -38,7 +38,7 @@ export default function AdminLoginPage() {
       <div className="bq-auth-card">
         <div className="bq-auth-brand">
           <Logo size={30} />
-          boutiqo admin
+          Boutiqo admin
         </div>
         <h1 style={{ fontSize: 21, fontFamily: "var(--font-sans)", fontWeight: 700, marginBottom: 4 }}>Super admin login</h1>
         <p style={{ color: "var(--text-muted)", marginBottom: 20 }}>Internal Boutiqo team only.</p>

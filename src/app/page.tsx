@@ -20,7 +20,7 @@ export default function Home() {
       <div className="bq-auth-card">
         <div className="bq-auth-brand">
           <Logo size={30} />
-          boutiqo
+          Boutiqo
         </div>
         <h1 style={{ fontSize: 24, fontFamily: "var(--font-sans)", fontWeight: 700, lineHeight: 1.25, margin: "16px 0 8px" }}>
           Your order book, on your phone

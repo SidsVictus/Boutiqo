@@ -19,7 +19,7 @@ export default function AdminSignoutPage() {
       <div className="bq-auth-card" style={{ textAlign: "center" }}>
         <div className="bq-auth-brand" style={{ justifyContent: "center" }}>
           <Logo size={30} />
-          boutiqo admin
+          Boutiqo admin
         </div>
         <div style={{ margin: "12px auto", width: 56, height: 56, borderRadius: "999px", background: "var(--success-bg)", color: "var(--green-700)", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Check size={26} />

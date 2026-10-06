@@ -119,7 +119,7 @@ export default function ResetPasswordPage() {
       <div className="bq-auth-card">
         <div className="bq-auth-brand">
           <Logo size={30} />
-          boutiqo
+          Boutiqo
         </div>
         {body}
       </div>
