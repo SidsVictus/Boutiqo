@@ -253,8 +253,14 @@ async function handleAuth(req, res, url, path) {
     if (!isServiceRole(req)) return authError(res, 403, "not_admin", "User not allowed");
     const email = String(body.email || "").toLowerCase();
     if (state.users.has(email)) return authError(res, 422, "email_exists", "A user with this email address has already been registered");
-    const user = makeUser({ email, password: body.password ?? null, confirmed: !!body.email_confirm });
+    const user = makeUser({ email, password: body.password ?? null, confirmed: !!body.email_confirm, name: body.user_metadata?.full_name });
     return json(res, 200, publicUser(user));
+  }
+  if (path === "/admin/users" && req.method === "GET") {
+    if (!isServiceRole(req)) return authError(res, 403, "not_admin", "User not allowed");
+    const page = Number(q.get("page") || 1), per = Number(q.get("per_page") || 50);
+    const all = [...state.users.values()].map(publicUser);
+    return json(res, 200, { users: all.slice((page - 1) * per, page * per), aud: "authenticated" });
   }
   if (path.startsWith("/admin/users/") && req.method === "GET") {
     if (!isServiceRole(req)) return authError(res, 403, "not_admin", "User not allowed");

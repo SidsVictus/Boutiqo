@@ -7,6 +7,7 @@ import { Button } from "@/components/ds/Button";
 import { Input } from "@/components/ds/Input";
 import { Logo } from "@/components/app/Logo";
 import { PasswordInput } from "@/components/app/PasswordInput";
+import { GoogleButton } from "@/components/app/GoogleButton";
 import { useSession } from "@/lib/session/SessionContext";
 import { useAuthPage } from "@/lib/auth/useAuthPage";
 
@@ -71,6 +72,8 @@ export default function OwnerLoginPage() {
             {loading ? "Logging in…" : "Log in"}
           </Button>
         </form>
+        <div style={{ margin: "18px 0", textAlign: "center", color: "var(--text-muted)", fontSize: 15 }}>or</div>
+        <GoogleButton />
         <p style={{ marginTop: 18, fontSize: 16 }}>
           New here? <Link href="/owner/signup">Create an account</Link>
         </p>

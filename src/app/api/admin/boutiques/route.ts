@@ -33,21 +33,43 @@ export async function POST(request: Request) {
   if (!parsed.success) return apiValidationError(parsed.error);
 
   const admin = createSupabaseAdminClient();
-  const { name, area, ownerName, ownerEmail, phone, gstNumber, category } = parsed.data;
+  const { name, area, ownerName, phone, gstNumber, category } = parsed.data;
+  // Auth emails are case-insensitive; store the same form everywhere so the
+  // owner's sign-in (Google or password, any device) always matches.
+  const ownerEmail = parsed.data.ownerEmail.trim().toLowerCase();
 
+  // The owner may already have an account, e.g. they tried "Continue with
+  // Google" on their phone before this. Reuse it if it isn't already a
+  // boutique owner or an admin, so their existing sign-in keeps working.
+  let ownerUserId: string | null = null;
+  let createdNewUser = false;
   const { data: created, error: createUserError } = await admin.auth.admin.createUser({
     email: ownerEmail,
     email_confirm: true,
-    user_metadata: { created_by: "admin-add" },
+    user_metadata: { created_by: "admin-add", full_name: ownerName },
   });
-  if (createUserError || !created.user) {
-    return apiError(409, "user_create_failed", "Could not create the owner account (email may already be in use)");
+  if (created?.user) {
+    ownerUserId = created.user.id;
+    createdNewUser = true;
+  } else {
+    const existing = await findUserIdByEmail(admin, ownerEmail);
+    if (!existing) {
+      logSecurityEvent("admin_add_owner_failed", { reason: createUserError?.message ?? "unknown" });
+      return apiError(500, "user_create_failed", "Could not create the owner's account. Try again.");
+    }
+    const [{ data: ownsBoutique }, { data: isAdminRow }] = await Promise.all([
+      admin.from("boutiques").select("id").eq("owner_user_id", existing).maybeSingle(),
+      admin.from("admins").select("id").eq("user_id", existing).maybeSingle(),
+    ]);
+    if (ownsBoutique) return apiError(409, "email_has_boutique", "This email already owns a boutique on Boutiqo. Use a different owner email.");
+    if (isAdminRow) return apiError(409, "email_is_admin", "This email belongs to a Boutiqo admin. Use the owner's own email.");
+    ownerUserId = existing;
   }
 
   const { data: boutique, error } = await admin
     .from("boutiques")
     .insert({
-      owner_user_id: created.user.id,
+      owner_user_id: ownerUserId,
       name,
       area: area || null,
       owner_name: ownerName,
@@ -63,9 +85,31 @@ export async function POST(request: Request) {
     .single();
 
   if (error) {
-    await admin.auth.admin.deleteUser(created.user.id);
+    if (createdNewUser) await admin.auth.admin.deleteUser(ownerUserId);
     return apiError(500, "boutique_create_failed", "Could not create the boutique record");
   }
 
-  return apiOk(boutique, 201);
+  // Tell the owner how to get in: a "set your password" email (any device,
+  // any browser: implicit-flow link handled by /auth/confirm). They can also
+  // just use "Continue with Google" with this same Gmail address.
+  const origin = new URL(request.url).origin;
+  const { error: mailError } = await admin.auth.resetPasswordForEmail(ownerEmail, {
+    redirectTo: `${origin}/auth/confirm?next=/owner/reset-password`,
+  });
+  if (mailError) logSecurityEvent("admin_add_welcome_email_failed", { reason: mailError.message });
+
+  return apiOk({ ...boutique, welcome_email_sent: !mailError }, 201);
+}
+
+/** Auth user id for an email (admin API has no direct lookup; Boutiqo's user
+ * count is small, so page through). */
+async function findUserIdByEmail(admin: ReturnType<typeof createSupabaseAdminClient>, email: string): Promise<string | null> {
+  for (let page = 1; page <= 50; page++) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
+    if (error) return null;
+    const hit = data.users.find((u) => u.email?.toLowerCase() === email);
+    if (hit) return hit.id;
+    if (data.users.length < 200) return null;
+  }
+  return null;
 }

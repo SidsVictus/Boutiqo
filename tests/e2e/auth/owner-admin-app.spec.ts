@@ -727,3 +727,89 @@ test.describe("Demo data cleanup and contacting a boutique", () => {
     await expect(main.getByRole("link", { name: /Open in your mail app/ })).toHaveAttribute("href", `mailto:${OWNER}?subject=Hey%20boutiqo%20partner%2C%20this%20is%20an%20important%20message.`);
   });
 });
+
+test.describe("Admin adds a boutique on a laptop; the owner signs in on their phone", () => {
+  const LAPTOP = { viewport: { width: 1366, height: 800 }, baseURL: "http://localhost:3210" };
+  const PHONE_URL = "http://localhost:3210";
+
+  async function adminAdds(browser: import("@playwright/test").Browser, request: APIRequestContext, email: string) {
+    await mock(request, "seed", { users: [{ email: "ops@boutiqo.dev", password: PASSWORD }], admins: [{ email: "ops@boutiqo.dev", name: "Ops", role: "owner_admin" }] });
+    const ctx = await browser.newContext(LAPTOP);
+    const laptop = await ctx.newPage();
+    await login(laptop, "ops@boutiqo.dev", "/admin/login");
+    await laptop.waitForURL("**/admin/dashboard");
+    await laptop.goto("/admin/boutiques/new");
+    const form = laptop.locator(".bq-shell-web");
+    await form.getByLabel(/^Boutique name/).fill("Rani Designs");
+    await form.getByLabel(/^Owner name/).fill("Rani");
+    await form.getByLabel(/^Owner email/).fill(email);
+    await form.getByLabel(/^Category/).fill("Bridal");
+    await form.getByRole("button", { name: "Create boutique" }).click();
+    return { ctx, laptop };
+  }
+
+  test("owner signs in with Google on the phone (no password ever set)", async ({ browser, request, page }) => {
+    const { ctx, laptop } = await adminAdds(browser, request, "  Rani.Owner@Gmail.com ");
+    await laptop.waitForURL(/\/admin\/boutiques\/[^/]+$/);
+    await expect(laptop.getByText("rani.owner@gmail.com got an email to set a password").first()).toBeVisible();
+    await ctx.close();
+
+    await mock(request, "config", { googleUser: { email: "rani.owner@gmail.com", name: "Rani" } });
+    await page.goto(`${PHONE_URL}/owner/login`);
+    await page.getByRole("button", { name: "Continue with Google" }).click();
+    await page.waitForURL("**/owner/dashboard");
+    await expect(page.locator(".bq-shell-mobile")).toBeVisible();
+    await page.goto("/owner/settings");
+    await expect(page.locator(".bq-shell-mobile__content").getByLabel(/^Boutique name/)).toHaveValue("Rani Designs");
+  });
+
+  test("owner sets a password from the welcome email on the phone, then logs in with it anywhere", async ({ browser, request, page }) => {
+    const { ctx } = await adminAdds(browser, request, "rani.owner@gmail.com");
+    await ctx.close();
+    const mails = await (await request.get(`${MOCK}/__mock/outbox?to=rani.owner%40gmail.com`)).json();
+    expect(mails.at(-1).type).toBe("recovery");
+
+    await page.goto(mails.at(-1).link); // opened from Gmail on the phone: none of the laptop's cookies
+    await page.waitForURL((u) => u.pathname === "/owner/reset-password");
+    await page.getByLabel(/^New password/).fill("rani-phone-pass-1");
+    await page.getByLabel("Confirm new password").fill("rani-phone-pass-1");
+    await page.getByRole("button", { name: "Save new password" }).click();
+    await expect(page.getByRole("heading", { name: "Password updated" })).toBeVisible();
+
+    const other = await browser.newContext(LAPTOP);
+    const p2 = await other.newPage();
+    await p2.goto("/owner/login");
+    await p2.getByLabel("Email").fill("RANI.OWNER@gmail.com");
+    await p2.getByLabel(/^Password/).fill("rani-phone-pass-1");
+    await p2.getByRole("button", { name: "Log in" }).click();
+    await p2.waitForURL("**/owner/dashboard");
+    await other.close();
+  });
+
+  test("an owner who already tried Google sign-in first still gets the boutique", async ({ browser, request, page }) => {
+    // Owner opened the app and tapped Continue with Google before the admin added them.
+    await mock(request, "config", { googleUser: { email: "early@gmail.com", name: "Early" } });
+    await page.goto(`${PHONE_URL}/owner/login`);
+    await page.getByRole("button", { name: "Continue with Google" }).click();
+    await page.waitForURL(/\/owner\/(register|signup)/);
+
+    const { ctx, laptop } = await adminAdds(browser, request, "early@gmail.com");
+    await laptop.waitForURL(/\/admin\/boutiques\/[^/]+$/);
+    await ctx.close();
+
+    // Still signed in from before on the phone: reopening the app goes straight to the boutique.
+    await page.goto(`${PHONE_URL}/owner/dashboard`);
+    await page.waitForURL("**/owner/dashboard");
+    await expect(page.locator(".bq-shell-mobile .bq-appbar__title")).toHaveText("Home");
+  });
+
+  test("an email that already owns a boutique is refused with a clear reason", async ({ browser, request }) => {
+    await mock(request, "seed", {
+      users: [{ email: OWNER, password: PASSWORD }],
+      boutiques: [{ ownerEmail: OWNER, name: "Lotus Boutique", owner_name: "Anitha", category: "T", area: "A" }],
+    });
+    const { ctx, laptop } = await adminAdds(browser, request, OWNER);
+    await expect(laptop.locator(".bq-shell-web").getByText("This email already owns a boutique on Boutiqo")).toBeVisible();
+    await ctx.close();
+  });
+});
