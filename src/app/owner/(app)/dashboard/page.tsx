@@ -58,9 +58,9 @@ export default function OwnerDashboardPage() {
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <div className="bq-stat-grid">
         <StatTile label="Open orders" value={openCount} hint="See all dues" href="/owner/calendar?view=open" />
-        <StatTile label="Overdue" value={overdueCount} tone={overdueCount > 0 ? "alert" : undefined} href="/owner/calendar?view=overdue" />
+        <StatTile label="Delayed orders" value={overdueCount} tone={overdueCount > 0 ? "alert" : undefined} href="/owner/calendar?view=overdue" />
         <StatTile label="Ready for pickup" value={readyCount} href="/owner/calendar?view=ready" />
-        <StatTile label="Outstanding" value={formatMoney(outstandingTotal(orders))} hint={`${unpaidCount} unpaid`} href="/owner/billing" />
+        <StatTile label="Bills due" value={formatMoney(outstandingTotal(orders))} hint={`${unpaidCount} unpaid`} href="/owner/billing" />
         <StatTile label="Customers" value={customers.length} href="/owner/customers" />
       </div>
 
