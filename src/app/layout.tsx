@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { SessionProvider } from "@/lib/session/SessionContext";
 import { ToastProvider } from "@/lib/session/ToastContext";
+import { ShellBridge } from "@/components/app/ShellBridge";
 
 export const metadata: Metadata = {
   title: "Boutiqo",
@@ -29,6 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <SessionProvider>
           <ToastProvider>{children}</ToastProvider>
+          <ShellBridge />
         </SessionProvider>
       </body>
     </html>

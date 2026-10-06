@@ -247,9 +247,9 @@ test.describe("Owner app", () => {
       Object.defineProperty(window, "ReactNativeWebView", {
         value: {
           postMessage(raw: string) {
-            w.__posts.push(raw);
             const m = JSON.parse(raw);
             if (m.type !== "boutiqo:voice") return;
+            w.__posts.push(raw);
             if (m.action === "start") {
               setTimeout(() => send({ type: "start" }), 30);
               const phrase = w.__phrases.shift();
@@ -297,6 +297,7 @@ test.describe("Owner app", () => {
       Object.defineProperty(window, "ReactNativeWebView", {
         value: {
           postMessage(raw: string) {
+            if (JSON.parse(raw).type !== "boutiqo:voice") return;
             w.__posts.push(raw);
             if (JSON.parse(raw).action === "start") {
               setTimeout(() => send({ type: "error", code: "not-allowed", message: "Microphone permission is off.", canAskAgain: false }), 30);
@@ -811,5 +812,44 @@ test.describe("Admin adds a boutique on a laptop; the owner signs in on their ph
     const { ctx, laptop } = await adminAdds(browser, request, OWNER);
     await expect(laptop.locator(".bq-shell-web").getByText("This email already owns a boutique on Boutiqo")).toBeVisible();
     await ctx.close();
+  });
+});
+
+test.describe("Android app: full screen", () => {
+  test("pages pad themselves for the phone's bars, and ask for light/dark status-bar icons", async ({ page, request }) => {
+    await seedOwner(request);
+    await page.addInitScript(() => {
+      const w = window as unknown as { __bars: string[] };
+      w.__bars = [];
+      Object.defineProperty(window, "ReactNativeWebView", {
+        value: { postMessage: (raw: string) => { const m = JSON.parse(raw); if (m.type === "boutiqo:statusbar") w.__bars.push(m.style); } },
+      });
+      // What android/src/edge.ts injects before the page loads: status bar 32px, navigation bar 24px.
+      (window as unknown as { BoutiqoInsets: unknown }).BoutiqoInsets = { top: 32, bottom: 24 };
+      document.documentElement.style.setProperty("--bq-shell-inset-top", "32px");
+      document.documentElement.style.setProperty("--bq-shell-inset-bottom", "24px");
+    });
+    const bars = () => page.evaluate(() => (window as unknown as { __bars: string[] }).__bars);
+
+    await page.goto("/owner/login");
+    await expect.poll(async () => (await bars()).at(-1)).toBe("light"); // dark carpet behind the status bar
+    await expect.poll(() => page.locator(".bq-auth-bg").evaluate((el) => getComputedStyle(el).paddingTop)).toBe("52px"); // 20px + 32px status bar
+
+    await page.getByLabel("Email").fill(OWNER);
+    await page.getByLabel(/^Password/).fill(PASSWORD);
+    await page.getByRole("button", { name: "Log in" }).click();
+    await page.waitForURL("**/owner/dashboard");
+    await expect.poll(async () => (await bars()).at(-1)).toBe("dark"); // light app pages
+    await expect.poll(() => page.locator(".bq-shell-mobile .bq-mobile-top").evaluate((el) => getComputedStyle(el).paddingTop)).toBe("32px");
+  });
+
+  test("home page is trimmed: Google, or, sign in, legal links", async ({ page }) => {
+    await page.goto("/");
+    const card = page.locator(".bq-auth-card");
+    await expect(card).not.toContainText("No password to remember");
+    await expect(card).not.toContainText("Each boutique sees only");
+    await expect(card).not.toContainText(/already set up/i);
+    await expect(card.getByRole("button", { name: "Continue with Google" })).toBeVisible();
+    await expect(card.getByRole("link", { name: "Sign in to an existing boutique" })).toHaveAttribute("href", "/owner/login");
   });
 });

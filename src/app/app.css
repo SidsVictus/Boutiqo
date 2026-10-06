@@ -13,6 +13,11 @@
    sidebar + fluid content web layout. See docs/phase2-report.md §5. */
 :root {
   --bp-web: 1024px;
+  /* Safe-area insets. Browsers report env(); the Android app draws the page
+     edge to edge and passes the status/navigation bar sizes as
+     --bq-shell-inset-* (Android's WebView doesn't report env() reliably). */
+  --safe-top: max(env(safe-area-inset-top, 0px), var(--bq-shell-inset-top, 0px));
+  --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--bq-shell-inset-bottom, 0px));
 }
 
 .bq-app-frame {
@@ -30,7 +35,7 @@
   position: sticky;
   top: 0;
   z-index: 20;
-  padding-top: env(safe-area-inset-top);
+  padding-top: var(--safe-top);
 }
 .bq-appbar {
   display: flex;
@@ -50,7 +55,7 @@
 }
 .bq-shell-mobile__content {
   flex: 1;
-  padding: 16px 16px calc(32px + env(safe-area-inset-bottom));
+  padding: 16px 16px calc(32px + var(--safe-bottom));
 }
 .bq-tabbar {
   display: flex;
@@ -257,7 +262,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px 16px;
+  padding: calc(20px + var(--safe-top)) 16px calc(20px + var(--safe-bottom));
   background: var(--surface-blush) center/cover no-repeat;
   background-image: url("/assets/login-carpet.png");
 }
@@ -291,7 +296,7 @@
 }
 @media (min-width: 1024px) {
   .bq-auth-bg {
-    padding: 40px;
+    padding: calc(40px + var(--safe-top)) 40px calc(40px + var(--safe-bottom));
   }
 }
 .bq-auth-brand {

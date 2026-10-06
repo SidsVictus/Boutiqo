@@ -23,6 +23,7 @@ no R2 code and no secrets. Its only jobs are:
 | Web app URL + HTTPS enforcement | `src/config.ts` |
 | Google sign-in via a secure browser tab (Google blocks it inside WebViews) | `src/oauth.ts`, `App.tsx` (`onMessage`) |
 | Voice input for measurements: Android's speech recognizer, text streamed to the web app | `src/voice.ts`, `App.tsx` (`startVoice`) |
+| Full screen (edge to edge): the page draws under the status and navigation bars and is told their sizes; status-bar icons follow the page (light on the sign-in carpet, dark on app pages) | `src/edge.ts`, `App.tsx` |
 | Dev-only logging, with query strings and `/track/<token>` redacted | `src/log.ts` |
 
 ## Native features: what is and isn't native
