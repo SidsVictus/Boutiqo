@@ -22,7 +22,8 @@ export type SecurityEventKind =
   | "placeholder_admin_removed"
   | "super_admins_added"
   | "admin_claimed_via_google"
-  | "admin_claim_failed";
+  | "admin_claim_failed"
+  | "demo_boutique_removed";
 
 export function logSecurityEvent(kind: SecurityEventKind, details: Record<string, unknown>): void {
   console.error(
