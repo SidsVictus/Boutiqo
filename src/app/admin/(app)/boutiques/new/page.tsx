@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { ApiError } from "@/lib/data/store";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/session/SessionContext";
 import { adminCreateBoutique } from "@/lib/data/boutiques";
@@ -51,10 +52,15 @@ export default function AdminAddBoutiquePage() {
         phone: form.phone,
         gstNumber: form.gstNumber,
       });
-      flash(`${boutique.name} added.`, "success");
+      flash(
+        boutique.welcome_email_sent
+          ? `${boutique.name} added. ${boutique.email} got an email to set a password, or can sign in with Google using that address.`
+          : `${boutique.name} added. The owner can sign in with Google using ${boutique.email}, or use "Forgot password?" to set a password.`,
+        "success",
+      );
       router.push(`/admin/boutiques/${boutique.id}`);
-    } catch {
-      setError("Could not create this boutique. Try again.");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not create this boutique. Try again.");
     } finally {
       setLoading(false);
     }
@@ -64,7 +70,7 @@ export default function AdminAddBoutiquePage() {
     <form onSubmit={handleSubmit} className="bq-g2" style={{ maxWidth: 640, rowGap: 14 }}>
       <Input label="Boutique name" required value={form.name} onChange={(e) => set("name", e.target.value)} />
       <Input label="Owner name" required value={form.ownerName} onChange={(e) => set("ownerName", e.target.value)} />
-      <Input label="Owner email" required type="email" value={form.email} onChange={(e) => set("email", e.target.value)} />
+      <Input label="Owner email" required type="email" hint="The owner's own Gmail. They sign in with it on any device." value={form.email} onChange={(e) => set("email", e.target.value)} />
       <Input label="Area" value={form.area} onChange={(e) => set("area", e.target.value)} />
       <Input label="Category" required value={form.category} onChange={(e) => set("category", e.target.value)} />
       <Input label="Phone" value={form.phone} onChange={(e) => set("phone", e.target.value)} />

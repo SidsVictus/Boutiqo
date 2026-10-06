@@ -77,8 +77,8 @@ export async function acceptTerms(boutiqueId: string): Promise<Boutique> {
 }
 
 /** admin-add: Super Admin creates a tenant + its owner's auth user directly. */
-export async function adminCreateBoutique(input: RegisterBoutiqueInput & { ownerEmail?: string }): Promise<Boutique> {
-  return apiFetch<Boutique>("/api/admin/boutiques", {
+export async function adminCreateBoutique(input: RegisterBoutiqueInput & { ownerEmail?: string }): Promise<Boutique & { welcome_email_sent?: boolean }> {
+  return apiFetch<Boutique & { welcome_email_sent?: boolean }>("/api/admin/boutiques", {
     method: "POST",
     body: JSON.stringify({
       name: input.name,
