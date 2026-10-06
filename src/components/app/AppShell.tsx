@@ -107,7 +107,7 @@ export function AppShell({
           <aside className="bq-sidebar">
             <div className="bq-sidebar__brand">
               <Logo size={28} onDark />
-              boutiqo
+              Boutiqo
             </div>
             <div className="bq-sidebar__nav">
               {navItems.map((item) => {

@@ -46,7 +46,7 @@ export default function ForgotPasswordPage() {
       <div className="bq-auth-card">
         <div className="bq-auth-brand">
           <Logo size={30} />
-          boutiqo
+          Boutiqo
         </div>
         {sentTo ? (
           <>

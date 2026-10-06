@@ -87,7 +87,7 @@ export default function OwnerRegisterPage() {
       <div className="bq-auth-card bq-auth-card--wide">
         <div className="bq-auth-brand">
           <Logo size={30} />
-          boutiqo
+          Boutiqo
         </div>
         <h1 style={{ fontSize: 21, fontFamily: "var(--font-sans)", fontWeight: 700, marginBottom: 4 }}>Tell us about your boutique</h1>
         <p style={{ color: "var(--text-muted)", marginBottom: 20 }}>

@@ -26,7 +26,7 @@ export function LegalPage({ title, children }: { title: string; children: React.
       <article className="bq-legal__card">
         <div className="bq-auth-brand">
           <Logo size={30} />
-          boutiqo
+          Boutiqo
         </div>
         <h1>{title}</h1>
         <p className="bq-legal__meta">Last updated: {LEGAL_LAST_UPDATED}</p>

@@ -30,7 +30,7 @@ export default function CustomerTrackingPage() {
       <div style={{ width: "100%", maxWidth: 560 }}>
         <header className="bq-track-brand">
           {/* eslint-disable-next-line @next/next/no-img-element -- tiny static brand mark; next/image adds nothing here. */}
-          <img src="/brand/boutiqo-mark.png" alt="" width={44} height={44} className="bq-track-brand__mark" />
+          <img src="/brand/boutiqo-b.png" alt="" width={30} height={44} className="bq-track-brand__mark" />
           <div className="bq-track-brand__text">
             <span className="bq-track-brand__name">Boutiqo</span>
             <span className="bq-track-brand__sub">{view ? `Order tracking · ${view.boutiqueName}` : "Order tracking"}</span>

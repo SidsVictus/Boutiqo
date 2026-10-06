@@ -51,7 +51,7 @@ export default function OwnerLoginPage() {
       <div className="bq-auth-card">
         <div className="bq-auth-brand">
           <Logo size={30} />
-          boutiqo
+          Boutiqo
         </div>
         <h1 style={{ fontSize: 21, fontFamily: "var(--font-sans)", fontWeight: 700, marginBottom: 4 }}>Log in</h1>
         <p style={{ color: "var(--text-muted)", marginBottom: 20 }}>Welcome back.</p>
