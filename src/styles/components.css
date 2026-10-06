@@ -94,7 +94,7 @@
 .bq-choice{display:inline-flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:var(--fs-sm);color:var(--text-body);min-height:var(--tap-min);padding:10px 0}
 .bq-choice--disabled{cursor:not-allowed;color:var(--text-faint)}
 .bq-choice__box{flex:none;width:20px;height:20px;margin-top:1px;border:var(--border-emphasis) solid var(--line-strong);background:var(--surface-card);display:inline-flex;align-items:center;justify-content:center;transition:background var(--dur-fast) var(--ease-standard),border-color var(--dur-fast) var(--ease-standard)}
-.bq-choice__box--check{border-radius:6px}
+.bq-choice__box--check{border-radius:var(--radius-xs)}
 .bq-choice__box--radio{border-radius:var(--radius-pill)}
 .bq-choice:hover .bq-choice__box{border-color:var(--plum-500)}
 .bq-choice__box[data-on="true"]{background:var(--action-primary);border-color:var(--action-primary)}
