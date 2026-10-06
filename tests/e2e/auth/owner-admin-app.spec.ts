@@ -589,7 +589,7 @@ test.describe("Clickable home, dues list, billing, tracking brand", () => {
     const main = page.locator(".bq-shell-mobile__content");
 
     await expect(main.getByRole("link", { name: /Open orders\s*3/ })).toBeVisible();
-    await expect(main.getByRole("link", { name: /Outstanding\s*₹1,300/ })).toBeVisible();
+    await expect(main.getByRole("link", { name: /Bills due\s*₹1,300/ })).toBeVisible();
     // Due this week: overdue + ready ones, never delivered.
     await expect(main.locator(".bq-order-row")).toHaveCount(2);
 
@@ -618,16 +618,16 @@ test.describe("Clickable home, dues list, billing, tracking brand", () => {
     await main.locator(".bq-order-row", { hasText: "Lehenga" }).click();
     await page.waitForURL(/\/owner\/orders\/[^/]+$/);
 
-    // Overdue tile → overdue view; Outstanding → billing.
+    // Delayed orders tile → overdue view; Bills due → billing.
     await page.goto("/owner/dashboard");
-    await main.getByRole("link", { name: /^Overdue/ }).click();
+    await main.getByRole("link", { name: /^Delayed orders/ }).click();
     await page.waitForURL("**/owner/calendar?view=overdue");
     await expect(main.locator(".bq-order-row")).toHaveCount(1);
     await page.goto("/owner/dashboard");
     await main.getByRole("link", { name: /Customers/ }).click();
     await page.waitForURL("**/owner/customers");
     await page.goto("/owner/dashboard");
-    await main.getByRole("link", { name: /Outstanding/ }).click();
+    await main.getByRole("link", { name: /Bills due/ }).click();
     await page.waitForURL("**/owner/billing");
     await expect(main.getByText("₹1,300").first()).toBeVisible();
     await main.locator("a.bq-order-row").first().click();
