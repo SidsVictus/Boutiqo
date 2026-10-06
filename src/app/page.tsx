@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ds/Button";
-import { Logo } from "@/components/app/Logo";
 import { GoogleButton } from "@/components/app/GoogleButton";
 import { useAuthPage } from "@/lib/auth/useAuthPage";
 
@@ -19,7 +18,6 @@ export default function Home() {
     <main className="bq-auth-bg">
       <div className="bq-auth-card">
         <div className="bq-auth-brand">
-          <Logo size={30} />
           Boutiqo
         </div>
         <h1 style={{ fontSize: 24, fontFamily: "var(--font-sans)", fontWeight: 700, lineHeight: 1.25, margin: "16px 0 8px" }}>

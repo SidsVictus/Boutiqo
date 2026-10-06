@@ -38,18 +38,18 @@ export default function CustomerTrackingPage() {
         </header>
 
         {view === undefined ? (
-          <div className="bq-auth-card">
+          <div className="bq-auth-card bq-auth-card--plain">
             <div className="bq-skeleton" style={{ height: 200 }} />
           </div>
         ) : view === null ? (
-          <div className="bq-auth-card" style={{ textAlign: "center" }}>
+          <div className="bq-auth-card bq-auth-card--plain" style={{ textAlign: "center" }}>
             <h1 className="bq-brand" style={{ fontSize: 22 }}>
               Tracking link not found
             </h1>
             <p style={{ color: "var(--text-muted)" }}>This link may be incorrect or the order may no longer be trackable.</p>
           </div>
         ) : (
-          <div className="bq-auth-card" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          <div className="bq-auth-card bq-auth-card--plain" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div>
                 <div className="bq-num" style={{ fontSize: 15, color: "var(--text-muted)" }}>
