@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ds/Button";
 import { Input } from "@/components/ds/Input";
-import { Logo } from "@/components/app/Logo";
 import { GoogleButton } from "@/components/app/GoogleButton";
 import { PasswordInput } from "@/components/app/PasswordInput";
 import { useSession } from "@/lib/session/SessionContext";
@@ -65,7 +64,6 @@ export default function OwnerSignupPage() {
       <main className="bq-auth-bg">
         <div className="bq-auth-card">
           <div className="bq-auth-brand">
-            <Logo size={30} />
             Boutiqo
           </div>
           <h1 style={{ fontSize: 21, fontFamily: "var(--font-sans)", fontWeight: 700, marginBottom: 4 }}>Check your email</h1>
@@ -84,7 +82,6 @@ export default function OwnerSignupPage() {
     <main className="bq-auth-bg">
       <div className="bq-auth-card">
         <div className="bq-auth-brand">
-          <Logo size={30} />
           Boutiqo
         </div>
         <h1 style={{ fontSize: 21, fontFamily: "var(--font-sans)", fontWeight: 700, marginBottom: 4 }}>Create your account</h1>

@@ -262,12 +262,29 @@
   background-image: url("/assets/login-carpet.png");
 }
 .bq-auth-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   width: 100%;
   max-width: 440px;
   background: var(--surface-card);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-lg);
   padding: 28px 24px;
+}
+/* The brand "b" as a large, faint watermark filling the card, behind the
+   content (z-index -1 inside the card's own stacking context). */
+.bq-auth-card::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 4% 6%;
+  background: url("/brand/boutiqo-b.png") center / contain no-repeat;
+  opacity: 0.06;
+  pointer-events: none;
+}
+.bq-auth-card--plain::before {
+  content: none;
 }
 .bq-auth-card--wide {
   max-width: 620px;

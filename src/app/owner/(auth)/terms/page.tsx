@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ds/Button";
 import { Checkbox } from "@/components/ds/Checkbox";
-import { Logo } from "@/components/app/Logo";
 import { useSession } from "@/lib/session/SessionContext";
 import { registerBoutique } from "@/lib/data/boutiques";
 import { ApiError } from "@/lib/data/store";
@@ -62,7 +61,6 @@ export default function OwnerTermsPage() {
     <main className="bq-auth-bg">
       <div className="bq-auth-card">
         <div className="bq-auth-brand">
-          <Logo size={30} />
           Boutiqo
         </div>
         <h1 style={{ fontSize: 21, fontFamily: "var(--font-sans)", fontWeight: 700, marginBottom: 4 }}>Terms &amp; privacy</h1>

@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { Button } from "@/components/ds/Button";
-import { Logo } from "@/components/app/Logo";
 import { useSession } from "@/lib/session/SessionContext";
 import { Check } from "@/components/app/icons";
 
@@ -18,7 +17,6 @@ export default function OwnerSignoutPage() {
     <main className="bq-auth-bg">
       <div className="bq-auth-card" style={{ textAlign: "center" }}>
         <div className="bq-auth-brand" style={{ justifyContent: "center" }}>
-          <Logo size={30} />
           Boutiqo
         </div>
         <div style={{ margin: "12px auto", width: 56, height: 56, borderRadius: "999px", background: "var(--success-bg)", color: "var(--green-700)", display: "flex", alignItems: "center", justifyContent: "center" }}>

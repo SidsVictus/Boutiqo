@@ -4,7 +4,6 @@ import * as React from "react";
 import Link from "next/link";
 import { Button } from "@/components/ds/Button";
 import { Input } from "@/components/ds/Input";
-import { Logo } from "@/components/app/Logo";
 import { useSession } from "@/lib/session/SessionContext";
 import { AUTH_ERROR_MESSAGES } from "@/lib/auth/redirects";
 
@@ -45,7 +44,6 @@ export default function ForgotPasswordPage() {
     <main className="bq-auth-bg">
       <div className="bq-auth-card">
         <div className="bq-auth-brand">
-          <Logo size={30} />
           Boutiqo
         </div>
         {sentTo ? (

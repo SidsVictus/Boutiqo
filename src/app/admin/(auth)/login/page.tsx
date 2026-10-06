@@ -4,7 +4,6 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ds/Button";
 import { Input } from "@/components/ds/Input";
-import { Logo } from "@/components/app/Logo";
 import { PasswordInput } from "@/components/app/PasswordInput";
 import { GoogleButton } from "@/components/app/GoogleButton";
 import { useSession } from "@/lib/session/SessionContext";
@@ -37,7 +36,6 @@ export default function AdminLoginPage() {
     <main className="bq-auth-bg">
       <div className="bq-auth-card">
         <div className="bq-auth-brand">
-          <Logo size={30} />
           Boutiqo admin
         </div>
         <h1 style={{ fontSize: 21, fontFamily: "var(--font-sans)", fontWeight: 700, marginBottom: 4 }}>Super admin login</h1>

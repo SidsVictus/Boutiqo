@@ -4,7 +4,6 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ds/Button";
-import { Logo } from "@/components/app/Logo";
 import { PasswordInput } from "@/components/app/PasswordInput";
 import { useSession } from "@/lib/session/SessionContext";
 import { MIN_PASSWORD_LENGTH } from "@/lib/auth/password";
@@ -118,7 +117,6 @@ export default function ResetPasswordPage() {
     <main className="bq-auth-bg">
       <div className="bq-auth-card">
         <div className="bq-auth-brand">
-          <Logo size={30} />
           Boutiqo
         </div>
         {body}
