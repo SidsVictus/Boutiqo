@@ -107,14 +107,6 @@ export function AppShell({
               <span className="bq-appbar__title">{title}</span>
               <div className="bq-appbar__actions">
                 <NotificationBell />
-                <Link
-                  href={signOutHref}
-                  className="bq-back-btn"
-                  aria-label="Sign out"
-                  title="Sign out"
-                >
-                  <LogOut size={18} />
-                </Link>
               </div>
             </div>
           </header>

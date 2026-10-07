@@ -51,7 +51,8 @@ test.describe("Owner app", () => {
     const title = page.locator(".bq-shell-mobile .bq-appbar__title");
     expect(tabsBox.y).toBeLessThan(5); // at the very top, under the status bar
     expect((await title.boundingBox())!.y).toBeGreaterThan(tabsBox.y); // title row below it
-    await expect(page.locator(".bq-shell-mobile").getByRole("link", { name: "Sign out" })).toBeVisible();
+    // No sign-out in the top bar any more; it lives at the bottom of Settings.
+    await expect(page.locator(".bq-shell-mobile .bq-mobile-top").getByRole("link", { name: "Sign out" })).toHaveCount(0);
 
     await tabs.getByRole("link", { name: "Settings" }).click();
     await page.waitForURL("**/owner/settings");
@@ -487,10 +488,12 @@ test.describe("Super admin", () => {
     await expect(page.getByText("Lotus Boutique is now active.")).toBeVisible();
     expect((await tables(request)).boutiques.find((b: { name: string }) => b.name === "Lotus Boutique").status).toBe("active");
 
-    // Roles page loads; sign out from the mobile top bar.
+    // Roles page loads; sign out from the bottom of the admin Home page.
     await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Admin roles" }).click();
     await expect(main.getByText("Read Only", { exact: true })).toBeVisible();
-    await page.locator(".bq-shell-mobile").getByRole("link", { name: "Sign out" }).click();
+    await expect(page.locator(".bq-shell-mobile .bq-mobile-top").getByRole("link", { name: "Sign out" })).toHaveCount(0);
+    await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Home" }).click();
+    await main.getByRole("link", { name: "Sign out" }).click();
     await expect(page.getByRole("heading", { name: "Signed out" })).toBeVisible();
     await page.goto("/admin/dashboard");
     await page.waitForURL("**/admin/login");

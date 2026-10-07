@@ -6,6 +6,10 @@ import { StatTile } from "@/components/app/StatTile";
 import { Badge } from "@/components/ds/Badge";
 import Link from "next/link";
 import type { Boutique } from "@/lib/supabase/types";
+import { Card } from "@/components/ds/Card";
+import { Button } from "@/components/ds/Button";
+import { LogOut } from "@/components/app/icons";
+import { useSession } from "@/lib/session/SessionContext";
 
 const STATUS_TONE: Record<Boutique["status"], "success" | "warning" | "neutral"> = {
   active: "success",
@@ -14,6 +18,8 @@ const STATUS_TONE: Record<Boutique["status"], "success" | "warning" | "neutral">
 };
 
 export default function AdminDashboardPage() {
+  const { session } = useSession();
+  const me = session?.kind === "admin" ? session.admin : null;
   const [boutiques, setBoutiques] = React.useState<Boutique[]>([]);
 
   React.useEffect(() => {
@@ -49,6 +55,18 @@ export default function AdminDashboardPage() {
           ))}
         </div>
       </div>
+      <Card title="Account">
+        {me ? (
+          <p style={{ margin: "4px 0 0", color: "var(--text-muted)" }}>
+            {me.name} · {me.email} · {me.role.replace("_", " ")}
+          </p>
+        ) : null}
+        <div style={{ marginTop: 16 }}>
+          <Button as="a" href="/admin/signout" variant="danger" iconLeft={<LogOut size={16} />} block>
+            Sign out
+          </Button>
+        </div>
+      </Card>
     </div>
   );
 }
