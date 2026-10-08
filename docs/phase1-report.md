@@ -286,7 +286,8 @@ See `.env.example` for the full list with comments: `NEXT_PUBLIC_SUPABASE_URL`,
 
 ## 12. Development-only test accounts
 
-All passwords: `Boutiqo-Dev-2026!`. **Never use these in production.**
+All passwords: the `SEED_DEV_PASSWORD` value set in `.env.local` (not
+committed). **Never use these in production.**
 
 | Email | Role | Notes |
 |---|---|---|

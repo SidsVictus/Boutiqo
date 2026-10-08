@@ -53,3 +53,8 @@ next-env.d.ts
 # Local Netlify folder
 .netlify
 client_secret_*.json
+
+# Font binaries — licensed for use but NOT for redistribution.
+# Keep them locally; install instructions: public/fonts/README.md
+/public/fonts/*.ttf
+/public/fonts/*.otf

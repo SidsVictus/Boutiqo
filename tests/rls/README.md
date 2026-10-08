@@ -7,7 +7,8 @@ policies, triggers and RPCs the app uses. They need:
 1. `npm run seed` already run against the target project (or equivalent seed data —
    two boutique owners `owner1@boutiqo.dev` / `owner2@boutiqo.dev` and four admins
    `admin.owner@boutiqo.dev`, `admin.support@boutiqo.dev`, `admin.billing@boutiqo.dev`,
-   `admin.viewer@boutiqo.dev`, all with password `Boutiqo-Dev-2026!`).
+   `admin.viewer@boutiqo.dev`, all with the `SEED_DEV_PASSWORD` value from
+   `.env.local` — the seed script creates them).
 2. `.env.local` filled in with real `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
 3. Outbound network access to `*.supabase.co`.
 

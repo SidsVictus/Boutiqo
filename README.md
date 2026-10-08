@@ -216,3 +216,15 @@ in that file).
   decisions still unconfigured (see `docs/phase4-report.md`).
 - The landing page's download URL points at an Expo build behind an
   expo.dev login — an open item in `docs/Landing page.md`.
+
+## License
+
+The source code in this repository is available under the
+[MIT License](LICENSE).
+
+The Boutiqo name, logo, site copy, illustrations, and documentation content
+are **not** covered by that licence and remain © 2026 SidsVictus — all
+rights reserved. See [LICENSE](LICENSE) for the full terms, including the
+excluded-materials notice. Third-party dependencies keep their own
+licences, and font binaries are not shipped with this repository
+(`public/fonts/README.md`).

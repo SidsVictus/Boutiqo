@@ -17,7 +17,7 @@ import { createClient } from "@supabase/supabase-js";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getR2Client, buildObjectKey } from "../src/lib/r2";
 
-const DEV_PASSWORD = "Boutiqo-Dev-2026!";
+const DEV_PASSWORD = env("SEED_DEV_PASSWORD");
 
 function env(name: string): string {
   const v = process.env[name];

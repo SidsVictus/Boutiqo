@@ -12,7 +12,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 const RUN = process.env.RUN_LIVE_RLS_TESTS === "1";
-const DEV_PASSWORD = "Boutiqo-Dev-2026!";
+const DEV_PASSWORD = process.env.SEED_DEV_PASSWORD ?? "";
 
 async function signIn(email: string): Promise<SupabaseClient> {
   const client = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
