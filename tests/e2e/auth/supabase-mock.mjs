@@ -23,7 +23,7 @@ function reset() {
     codes: new Map(), // pkce auth code -> { userId, challenge, used }
     emailTokens: new Map(), // email-link token -> { userId, type, challenge, redirectTo }
     outbox: [], // { to, type, link }
-    tables: { boutiques: [], admins: [], customers: [], orders: [], files: [] },
+    tables: { boutiques: [], admins: [], customers: [], orders: [], files: [], notifications: [], announcements: [], notification_reads: [] },
   };
 }
 reset();
@@ -313,12 +313,51 @@ function scope(table, user, service) {
   const rows = state.tables[table] ?? (state.tables[table] = []);
   if (service) return rows;
   if (!user) return [];
+  // 0013_notifications_and_announcements.sql policies
+  const activeAdmin = state.tables.admins.find((a) => a.user_id === user.id && a.active);
+  const ownBoutique = state.tables.boutiques.find((b) => b.owner_user_id === user.id);
+  if (table === "notifications") return rows.filter((r) => (r.audience === "boutique" && ownBoutique && r.boutique_id === ownBoutique.id && ownBoutique.status !== "disabled") || (r.audience === "admins" && activeAdmin));
+  if (table === "announcements") return ownBoutique || activeAdmin ? rows : [];
+  if (table === "notification_reads") return rows.filter((r) => r.user_id === user.id);
   const admin = state.tables.admins.find((a) => a.user_id === user.id && a.active);
   if (admin) return rows;
   if (table === "boutiques") return rows.filter((r) => r.owner_user_id === user.id);
   if (table === "admins") return rows.filter((r) => r.user_id === user.id);
   const own = state.tables.boutiques.find((b) => b.owner_user_id === user.id);
   return own && OWNED_TABLES.has(table) ? rows.filter((r) => r.boutique_id === own.id) : [];
+}
+
+// Stand-ins for the 0013 notification triggers.
+const ordinal = (n) => n + (n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th");
+function logNote(audience, boutiqueId, title, link = null) {
+  state.tables.notifications.push({ id: randomUUID(), audience, boutique_id: boutiqueId, title, link, created_at: new Date().toISOString() });
+}
+const STAGE_WORD = { received: "Received", cutting: "Cutting", stitching: "Stitching", ready: "Ready for pickup", delivered: "Delivered" };
+function afterInsert(table, row, user) {
+  if (table === "customers") {
+    const n = state.tables.customers.filter((c) => c.boutique_id === row.boutique_id).length;
+    logNote("boutique", row.boutique_id, `Added your ${ordinal(n)} customer: ${row.name}`, `/owner/customers/${row.id}`);
+  } else if (table === "orders") {
+    const c = state.tables.customers.find((x) => x.id === row.customer_id);
+    const due = new Date(row.due_date + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+    logNote("boutique", row.boutique_id, `New order ${row.order_code} for ${c?.name ?? "a customer"}, due ${due}`, `/owner/orders/${row.id}`);
+  } else if (table === "announcements") {
+    const a = state.tables.admins.find((x) => x.user_id === row.created_by);
+    logNote("admins", null, `Announcement sent${a ? ` by ${a.name}` : ""}: ${row.title}`);
+  }
+  void user;
+}
+function afterUpdate(table, before, after, user) {
+  if (table === "orders") {
+    const c = state.tables.customers.find((x) => x.id === after.customer_id)?.name ?? "customer";
+    if (before.stage !== after.stage) logNote("boutique", after.boutique_id, `${after.order_code} (${c}) moved to ${STAGE_WORD[after.stage] ?? after.stage}`, `/owner/orders/${after.id}`);
+    if (after.paid && !before.paid) logNote("boutique", after.boutique_id, `${after.order_code} (${c}) marked paid`, `/owner/orders/${after.id}`);
+  } else if (table === "boutiques" && before.status !== after.status) {
+    const a = state.tables.admins.find((x) => x.user_id === user?.id);
+    const word = after.status === "active" ? "reactivated" : after.status === "on_hold" ? "put on hold" : "disabled";
+    logNote("admins", after.id, `${after.name} was ${word}${a ? ` by ${a.name}` : ""}`, `/admin/boutiques/${after.id}`);
+    logNote("boutique", after.id, after.status === "on_hold" ? "Your boutique is on hold. New orders are paused; contact Boutiqo support." : after.status === "active" ? "Your boutique is active again. You can take new orders." : "Your boutique has been disabled.");
+  }
 }
 
 function newRow(table, body) {
@@ -377,10 +416,28 @@ async function handleRest(req, res, url, path) {
     const raw = await readBody(req);
     const bodies = Array.isArray(raw) ? raw : [raw]; // PostgREST bulk insert
     const own = user && state.tables.boutiques.find((b) => b.owner_user_id === user.id);
-    const allowed = service || bodies.every((body) => OWNED_TABLES.has(table) && own && body.boutique_id === own.id && own.status === "active");
-    if (!allowed) return json(res, 403, { code: "42501", message: "new row violates row-level security policy" });
+    const adminRole = user && state.tables.admins.find((a) => a.user_id === user.id && a.active)?.role;
+    const allowedRow = (body) => {
+      if (table === "notifications") return false; // trigger-only
+      if (table === "announcements") return ["owner_admin", "support_admin"].includes(adminRole) && body.created_by === user.id;
+      if (table === "notification_reads") return body.user_id === user?.id;
+      return OWNED_TABLES.has(table) && own && body.boutique_id === own.id && own.status === "active";
+    };
+    if (!service && !bodies.every(allowedRow)) return json(res, 403, { code: "42501", message: "new row violates row-level security policy" });
+    if (table === "notification_reads") {
+      // upsert on user_id
+      const rows = bodies.map((body) => {
+        const existing = state.tables.notification_reads.find((r) => r.user_id === body.user_id);
+        if (existing) return Object.assign(existing, body);
+        const row = { ...body };
+        state.tables.notification_reads.push(row);
+        return row;
+      });
+      return reply(rows, 201);
+    }
     const rows = bodies.map((body) => newRow(table, body));
     state.tables[table].push(...rows);
+    for (const r of rows) afterInsert(table, r, user);
     return reply(rows, 201);
   }
 
@@ -395,7 +452,11 @@ async function handleRest(req, res, url, path) {
       if (role === "viewer" || role === "billing_admin") return json(res, 400, { code: "42501", message: "Your role cannot change boutique status" });
       if (role === "support_admin" && body.status === "disabled") return json(res, 400, { code: "42501", message: "Support admins cannot disable a boutique" });
     }
-    for (const t of targets) Object.assign(t, body, { updated_at: new Date().toISOString() });
+    for (const t of targets) {
+      const before = { ...t };
+      Object.assign(t, body, { updated_at: new Date().toISOString() });
+      afterUpdate(table, before, t, user);
+    }
     return reply(targets);
   }
   if (req.method === "DELETE") {

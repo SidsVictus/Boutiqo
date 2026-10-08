@@ -26,7 +26,7 @@ export default function CustomerTrackingPage() {
   }, [token]);
 
   return (
-    <main className="bq-auth-bg" style={{ alignItems: "flex-start", paddingTop: 40 }}>
+    <main className="bq-auth-bg" style={{ alignItems: "flex-start", paddingTop: "calc(40px + var(--safe-top))" }}>
       <div style={{ width: "100%", maxWidth: 560 }}>
         <header className="bq-track-brand">
           {/* eslint-disable-next-line @next/next/no-img-element -- tiny static brand mark; next/image adds nothing here. */}

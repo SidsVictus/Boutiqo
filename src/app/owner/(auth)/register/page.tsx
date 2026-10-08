@@ -87,8 +87,8 @@ export default function OwnerRegisterPage() {
         <div className="bq-auth-brand">
           Boutiqo
         </div>
-        <h1 style={{ fontSize: 21, fontFamily: "var(--font-sans)", fontWeight: 700, marginBottom: 4 }}>Tell us about your boutique</h1>
-        <p style={{ color: "var(--text-muted)", marginBottom: 20 }}>
+        <h1 className="bq-auth-title">Tell us about your boutique</h1>
+        <p className="bq-auth-sub">
           This appears on your records and your customers&apos; tracking pages.{draftSignup.email ? <> Signed in as {draftSignup.email}.</> : null}
         </p>
         <form onSubmit={handleSubmit} className="bq-g2" style={{ rowGap: 14 }}>

@@ -6,7 +6,7 @@ import { StatusBar } from "expo-status-bar";
 import * as WebBrowser from "expo-web-browser";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, AppState, BackHandler, KeyboardAvoidingView, Linking, StyleSheet, Text, View } from "react-native";
-import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaProvider, SafeAreaView, initialWindowMetrics, useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 import type { ExpoSpeechRecognitionModuleType } from "expo-speech-recognition/build/ExpoSpeechRecognitionModule.types";
 import type { ShouldStartLoadRequest, WebViewErrorEvent, WebViewHttpErrorEvent, WebViewMessageEvent, WebViewNavigation, WebViewOpenWindowEvent } from "react-native-webview/lib/WebViewTypes";
@@ -16,6 +16,7 @@ import { devLog } from "./src/log";
 import { classifyNavigation, redactUrl } from "./src/navigation";
 import { appReturnUrl, bridgeScript, callbackUrlFor, isSupabaseAuthorizeUrl, parseOAuthRequest, withAppRedirect } from "./src/oauth";
 import { StatusScreen, type ShellProblem } from "./src/StatusScreen";
+import { insetsScript, parseStatusBarRequest } from "./src/edge";
 import { parseVoiceCommand, recognitionOptions, voiceEventScript, type VoiceEvent } from "./src/voice";
 import { colors } from "./src/theme";
 
@@ -47,11 +48,19 @@ const BRIDGE_SCRIPT = bridgeScript(OAUTH_REDIRECT_URL, !!Speech);
 
 export default function App() {
   return (
-    <SafeAreaProvider>
-      <StatusBar style="dark" />
-      <SafeAreaView style={styles.root} edges={["top", "bottom"]}>
-        {CONFIG.ok ? <Shell url={CONFIG.url} origin={CONFIG.origin} /> : <ConfigError reason={CONFIG.reason} />}
-      </SafeAreaView>
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+      {CONFIG.ok ? (
+        // Edge to edge: the web app draws under the status and navigation
+        // bars and pads its own content (see src/edge.ts).
+        <View style={styles.root}>
+          <Shell url={CONFIG.url} origin={CONFIG.origin} />
+        </View>
+      ) : (
+        <SafeAreaView style={styles.root} edges={["top", "bottom"]}>
+          <StatusBar style="dark" />
+          <ConfigError reason={CONFIG.reason} />
+        </SafeAreaView>
+      )}
     </SafeAreaProvider>
   );
 }
@@ -66,6 +75,9 @@ function ConfigError({ reason }: { reason: string }) {
 
 function Shell({ url, origin }: { url: string; origin: string }) {
   const webRef = useRef<WebView>(null);
+  const insets = useSafeAreaInsets();
+  // The first screen (sign-in) has a dark background; pages report their own.
+  const [statusBarStyle, setStatusBarStyle] = useState<"light" | "dark">("light");
   const canGoBackRef = useRef(false);
   const lastUrlRef = useRef(url);
   const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -336,6 +348,11 @@ function Shell({ url, origin }: { url: string; origin: string }) {
         startOAuth(authorizeUrl);
         return;
       }
+      const barStyle = parseStatusBarRequest(data, sender, origin);
+      if (barStyle) {
+        setStatusBarStyle(barStyle);
+        return;
+      }
       const voice = parseVoiceCommand(data, sender, origin);
       if (!voice) return;
       if (voice.action === "start") void startVoice(voice.lang);
@@ -411,8 +428,15 @@ function Shell({ url, origin }: { url: string; origin: string }) {
     if (settleTimer.current) clearTimeout(settleTimer.current);
   }, []);
 
+  // Keep the page's safe-area padding right if the bars change size.
+  useEffect(() => {
+    webRef.current?.injectJavaScript(insetsScript(insets));
+  }, [insets]);
+
   return (
     <KeyboardAvoidingView style={styles.root} behavior="padding">
+      {/* Native screens (loading, errors) are light; web pages pick their own. */}
+      <StatusBar style={problem || !hasLoaded ? "dark" : statusBarStyle} />
       <WebView
         key={webKey}
         ref={webRef}
@@ -431,7 +455,7 @@ function Shell({ url, origin }: { url: string; origin: string }) {
         onHttpError={onHttpError}
         onRenderProcessGone={onRenderProcessGone}
         onMessage={onMessage}
-        injectedJavaScriptBeforeContentLoaded={BRIDGE_SCRIPT}
+        injectedJavaScriptBeforeContentLoaded={BRIDGE_SCRIPT + insetsScript(insets)}
         // Web platform features the app relies on (Supabase session in
         // cookies/localStorage, client-side rendering).
         javaScriptEnabled
@@ -457,10 +481,14 @@ function Shell({ url, origin }: { url: string; origin: string }) {
         </View>
       )}
 
-      {problem && <StatusScreen problem={problem} onRetry={retry} retrying={retrying} />}
+      {problem && (
+        <View style={[StyleSheet.absoluteFill, { paddingTop: insets.top, paddingBottom: insets.bottom, backgroundColor: colors.page }]}>
+          <StatusScreen problem={problem} onRetry={retry} retrying={retrying} />
+        </View>
+      )}
 
       {offline && !problem && (
-        <View style={styles.banner} accessibilityLiveRegion="polite">
+        <View style={[styles.banner, { paddingTop: insets.top + 8 }]} accessibilityLiveRegion="polite">
           <Text style={styles.bannerText}>You're offline — changes won't save until you reconnect.</Text>
         </View>
       )}

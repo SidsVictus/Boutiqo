@@ -1,4 +1,7 @@
+"use client";
+
 import * as React from "react";
+import { createPortal } from "react-dom";
 
 export interface DialogProps {
   open?: boolean;
@@ -13,19 +16,23 @@ export interface DialogProps {
 }
 
 export function Dialog({ open = true, variant = "modal", title, description, onClose, footer, children, className = "" }: DialogProps) {
+  const titleId = React.useId();
   if (!open) return null;
   const sheet = variant === "sheet";
-  return (
+  const node = (
     <div className={["bq-dialog__scrim", sheet ? "bq-dialog__scrim--sheet" : ""].filter(Boolean).join(" ")} onClick={onClose}>
       <div
         className={["bq-dialog", sheet ? "bq-dialog--sheet" : "", className].filter(Boolean).join(" ")}
         role="dialog"
         aria-modal="true"
+        aria-labelledby={title ? titleId : undefined}
         onClick={(e) => e.stopPropagation()}
       >
         {sheet ? <div className="bq-dialog__grab" /> : null}
         <div className="bq-dialog__head">
-          <div className="bq-dialog__title">{title}</div>
+          <div className="bq-dialog__title" id={titleId}>
+            {title}
+          </div>
           {onClose ? (
             <button className="bq-iconbtn bq-iconbtn--sm" aria-label="Close" onClick={onClose}>
               ×
@@ -38,4 +45,7 @@ export function Dialog({ open = true, variant = "modal", title, description, onC
       </div>
     </div>
   );
+  // Rendered at <body> level: an ancestor with backdrop-filter (the glass top
+  // bar) would otherwise trap the full-screen scrim inside itself.
+  return typeof document === "undefined" ? node : createPortal(node, document.body);
 }

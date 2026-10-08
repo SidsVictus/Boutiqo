@@ -43,8 +43,8 @@ export default function AuthConfirmPage() {
 
   return (
     <main className="bq-auth-bg" aria-busy="true">
-      <div className="bq-auth-card" style={{ textAlign: "center" }}>
-        <p style={{ color: "var(--text-muted)" }}>Signing you in…</p>
+      <div className="bq-auth-card">
+        <p className="bq-auth-sub">Signing you in…</p>
       </div>
     </main>
   );

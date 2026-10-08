@@ -1,7 +1,12 @@
 import type { Metadata, Viewport } from "next";
+import { Cormorant_Garamond } from "next/font/google";
 import "./globals.css";
 import { SessionProvider } from "@/lib/session/SessionContext";
 import { ToastProvider } from "@/lib/session/ToastContext";
+import { ShellBridge } from "@/components/app/ShellBridge";
+
+// Serif used across the sign-in and account screens (see .bq-auth-card).
+const authSerif = Cormorant_Garamond({ subsets: ["latin"], weight: ["500", "600"], style: ["normal", "italic"], variable: "--font-auth", display: "swap" });
 
 export const metadata: Metadata = {
   title: "Boutiqo",
@@ -25,10 +30,11 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={authSerif.variable}>
       <body>
         <SessionProvider>
           <ToastProvider>{children}</ToastProvider>
+          <ShellBridge />
         </SessionProvider>
       </body>
     </html>

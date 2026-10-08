@@ -3,7 +3,7 @@
     "name": "Boutiqo",
     "slug": "boutiqo",
     "scheme": "boutiqo",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "backgroundColor": "#fffbfa",
@@ -12,7 +12,7 @@
     ],
     "android": {
       "package": "com.boutiqo.app",
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "backgroundColor": "#fad3d0",
         "foregroundImage": "./assets/android-icon-foreground.png",

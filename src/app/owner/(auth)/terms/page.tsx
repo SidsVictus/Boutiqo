@@ -63,8 +63,8 @@ export default function OwnerTermsPage() {
         <div className="bq-auth-brand">
           Boutiqo
         </div>
-        <h1 style={{ fontSize: 21, fontFamily: "var(--font-sans)", fontWeight: 700, marginBottom: 4 }}>Terms &amp; privacy</h1>
-        <p style={{ color: "var(--text-muted)", marginBottom: 20 }}>Review and accept both before you continue.</p>
+        <h1 className="bq-auth-title">Terms &amp; privacy</h1>
+        <p className="bq-auth-sub">Review and accept both before you continue.</p>
         {error ? (
           <div className="bq-card" style={{ background: "var(--danger-bg)", color: "var(--signal-700)", marginBottom: 16 }}>
             {error}

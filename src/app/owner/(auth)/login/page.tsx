@@ -51,8 +51,8 @@ export default function OwnerLoginPage() {
         <div className="bq-auth-brand">
           Boutiqo
         </div>
-        <h1 style={{ fontSize: 21, fontFamily: "var(--font-sans)", fontWeight: 700, marginBottom: 4 }}>Log in</h1>
-        <p style={{ color: "var(--text-muted)", marginBottom: 20 }}>Welcome back.</p>
+        <h1 className="bq-auth-title">Log in</h1>
+        <p className="bq-auth-sub">Welcome back.</p>
 
         {banner ? (
           <div role="alert" className="bq-card" style={{ background: "var(--danger-bg)", color: "var(--signal-700)", marginBottom: 16 }}>
@@ -60,6 +60,8 @@ export default function OwnerLoginPage() {
           </div>
         ) : null}
 
+        <GoogleButton />
+        <div className="bq-or">or with email</div>
         <form onSubmit={handleSubmit} noValidate style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <Input label="Email" type="email" required autoComplete="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} />
           <PasswordInput label="Password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} error={error ?? undefined} />
@@ -70,9 +72,7 @@ export default function OwnerLoginPage() {
             {loading ? "Logging in…" : "Log in"}
           </Button>
         </form>
-        <div style={{ margin: "18px 0", textAlign: "center", color: "var(--text-muted)", fontSize: 15 }}>or</div>
-        <GoogleButton />
-        <p style={{ marginTop: 18, fontSize: 16 }}>
+        <p className="bq-auth-foot">
           New here? <Link href="/owner/signup">Create an account</Link>
         </p>
       </div>

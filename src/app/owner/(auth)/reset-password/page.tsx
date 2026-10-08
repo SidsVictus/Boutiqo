@@ -62,8 +62,8 @@ export default function ResetPasswordPage() {
   } else if (done) {
     body = (
       <>
-        <h1 style={{ fontSize: 21, fontFamily: "var(--font-sans)", fontWeight: 700, marginBottom: 4 }}>Password updated</h1>
-        <p style={{ color: "var(--text-muted)", marginBottom: 20 }} role="status">
+        <h1 className="bq-auth-title">Password updated</h1>
+        <p className="bq-auth-sub" role="status">
           Your new password is set. Use it next time you log in.
         </p>
         <Button block onClick={continueToApp}>
@@ -74,12 +74,12 @@ export default function ResetPasswordPage() {
   } else if (!signedIn) {
     body = (
       <>
-        <h1 style={{ fontSize: 21, fontFamily: "var(--font-sans)", fontWeight: 700, marginBottom: 4 }}>Link expired</h1>
-        <p style={{ color: "var(--text-muted)", marginBottom: 20 }}>This password reset link is invalid, expired or already used. Request a new one.</p>
+        <h1 className="bq-auth-title">Link expired</h1>
+        <p className="bq-auth-sub">This password reset link is invalid, expired or already used. Request a new one.</p>
         <Button as="a" href="/owner/forgot-password" block>
           Request a new link
         </Button>
-        <p style={{ marginTop: 18, fontSize: 16 }}>
+        <p className="bq-auth-foot">
           <Link href="/owner/login">Back to log in</Link>
         </p>
       </>
@@ -87,8 +87,8 @@ export default function ResetPasswordPage() {
   } else {
     body = (
       <>
-        <h1 style={{ fontSize: 21, fontFamily: "var(--font-sans)", fontWeight: 700, marginBottom: 4 }}>Set a new password</h1>
-        <p style={{ color: "var(--text-muted)", marginBottom: 20 }}>Choose a password you don&apos;t use anywhere else.</p>
+        <h1 className="bq-auth-title">Set a new password</h1>
+        <p className="bq-auth-sub">Choose a password you don&apos;t use anywhere else.</p>
         {formError ? (
           <div role="alert" className="bq-card" style={{ background: "var(--danger-bg)", color: "var(--signal-700)", marginBottom: 16 }}>
             {formError}

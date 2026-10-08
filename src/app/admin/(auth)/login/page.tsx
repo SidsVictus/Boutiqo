@@ -36,10 +36,10 @@ export default function AdminLoginPage() {
     <main className="bq-auth-bg">
       <div className="bq-auth-card">
         <div className="bq-auth-brand">
-          Boutiqo admin
+          Boutiqo
         </div>
-        <h1 style={{ fontSize: 21, fontFamily: "var(--font-sans)", fontWeight: 700, marginBottom: 4 }}>Super admin login</h1>
-        <p style={{ color: "var(--text-muted)", marginBottom: 20 }}>Internal Boutiqo team only.</p>
+        <h1 className="bq-auth-title">Super admin login</h1>
+        <p className="bq-auth-sub">Internal Boutiqo team only.</p>
 
         {suspendedNotice ? (
           <div className="bq-card" style={{ background: "var(--danger-bg)", color: "var(--signal-700)", marginBottom: 16 }}>
@@ -48,12 +48,7 @@ export default function AdminLoginPage() {
         ) : null}
 
         <GoogleButton variant="primary" />
-        <p className="bq-field__hint" style={{ margin: "8px 0 0" }}>
-          Team members sign in with the Google account on the admin list. No password needed.
-        </p>
-        <div className="bq-divider-text" style={{ margin: "18px 0", textAlign: "center", color: "var(--text-muted)", fontSize: 15 }}>
-          or with a password
-        </div>
+        <div className="bq-or">or with a password</div>
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <Input label="Email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -62,7 +57,7 @@ export default function AdminLoginPage() {
             {loading ? "Logging in…" : "Log in"}
           </Button>
         </form>
-        <p style={{ marginTop: 18, fontSize: 16 }}>
+        <p className="bq-auth-foot">
           <a href="/owner/forgot-password">Forgot password?</a>
         </p>
       </div>

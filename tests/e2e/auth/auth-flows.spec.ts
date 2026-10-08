@@ -104,7 +104,7 @@ test.describe("Google sign-in", () => {
     await page.addInitScript(() => {
       const sent: string[] = [];
       (window as unknown as { __sent: string[] }).__sent = sent;
-      (window as unknown as { ReactNativeWebView: unknown }).ReactNativeWebView = { postMessage: (m: string) => sent.push(m) };
+      (window as unknown as { ReactNativeWebView: unknown }).ReactNativeWebView = { postMessage: (m: string) => { if (!m.includes("boutiqo:statusbar")) sent.push(m); } };
     });
     await page.goto("/owner/signup");
     await page.getByRole("button", { name: "Continue with Google" }).click();
@@ -119,7 +119,7 @@ test.describe("Google sign-in", () => {
     await page.addInitScript(() => {
       const sent: string[] = [];
       (window as unknown as { __sent: string[] }).__sent = sent;
-      (window as unknown as { ReactNativeWebView: unknown }).ReactNativeWebView = { postMessage: (m: string) => sent.push(m) };
+      (window as unknown as { ReactNativeWebView: unknown }).ReactNativeWebView = { postMessage: (m: string) => { if (!m.includes("boutiqo:statusbar")) sent.push(m); } };
       (window as unknown as { BoutiqoShell: unknown }).BoutiqoShell = Object.freeze({ oauthRedirectUrl: "exp://192.168.1.3:8081/--/auth-callback" });
     });
     await page.goto("/owner/signup");
@@ -159,7 +159,7 @@ test.describe("Google sign-in", () => {
       (window as unknown as { BoutiqoShell: unknown }).BoutiqoShell = Object.freeze({ oauthRedirectUrl: "boutiqo://auth-callback" });
       const sent: string[] = [];
       (window as unknown as { __sent: string[] }).__sent = sent;
-      (window as unknown as { ReactNativeWebView: unknown }).ReactNativeWebView = { postMessage: (m: string) => sent.push(m) };
+      (window as unknown as { ReactNativeWebView: unknown }).ReactNativeWebView = { postMessage: (m: string) => { if (!m.includes("boutiqo:statusbar")) sent.push(m); } };
     });
     await page.goto("/owner/signup");
     await page.getByRole("button", { name: "Continue with Google" }).click();

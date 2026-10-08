@@ -66,8 +66,8 @@ export default function OwnerSignupPage() {
           <div className="bq-auth-brand">
             Boutiqo
           </div>
-          <h1 style={{ fontSize: 21, fontFamily: "var(--font-sans)", fontWeight: 700, marginBottom: 4 }}>Check your email</h1>
-          <p style={{ color: "var(--text-muted)", marginBottom: 20 }}>
+          <h1 className="bq-auth-title">Check your email</h1>
+          <p className="bq-auth-sub">
             We sent a confirmation link to <strong>{confirmSentTo}</strong>. Open it to continue setting up your boutique.
           </p>
           <Button variant="secondary" block onClick={() => setConfirmSentTo(null)}>
@@ -84,13 +84,15 @@ export default function OwnerSignupPage() {
         <div className="bq-auth-brand">
           Boutiqo
         </div>
-        <h1 style={{ fontSize: 21, fontFamily: "var(--font-sans)", fontWeight: 700, marginBottom: 4 }}>Create your account</h1>
-        <p style={{ color: "var(--text-muted)", marginBottom: 20 }}>Use your Gmail address to get started.</p>
+        <h1 className="bq-auth-title">Create your account</h1>
+        <p className="bq-auth-sub">Use your Gmail address to get started.</p>
         {urlError || formError ? (
           <div role="alert" className="bq-card" style={{ background: "var(--danger-bg)", color: "var(--signal-700)", marginBottom: 16 }}>
             {formError ?? urlError}
           </div>
         ) : null}
+        <GoogleButton />
+        <div className="bq-or">or with email</div>
         <form onSubmit={handleSubmit} noValidate style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <Input
             label="Email"
@@ -116,13 +118,7 @@ export default function OwnerSignupPage() {
             {loading ? "Creating account…" : "Create account"}
           </Button>
         </form>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "18px 0", color: "var(--text-faint)", fontSize: 15 }}>
-          <hr style={{ flex: 1, border: 0, borderTop: "1px solid var(--line-hairline)" }} />
-          or
-          <hr style={{ flex: 1, border: 0, borderTop: "1px solid var(--line-hairline)" }} />
-        </div>
-        <GoogleButton />
-        <p style={{ marginTop: 18, fontSize: 16 }}>
+        <p className="bq-auth-foot">
           Already have an account? <Link href="/owner/login">Log in</Link>
         </p>
       </div>

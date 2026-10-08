@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { Button } from "@/components/ds/Button";
 import { GoogleButton } from "@/components/app/GoogleButton";
 import { useAuthPage } from "@/lib/auth/useAuthPage";
 
@@ -20,28 +19,20 @@ export default function Home() {
         <div className="bq-auth-brand">
           Boutiqo
         </div>
-        <h1 style={{ fontSize: 24, fontFamily: "var(--font-sans)", fontWeight: 700, lineHeight: 1.25, margin: "16px 0 8px" }}>
+        <h1 className="bq-auth-title">
           Your order book, on your phone
         </h1>
-        <p style={{ color: "var(--text-muted)", marginBottom: 20 }}>
-          Sign in with the Gmail account you use for the boutique. No password to remember.
-        </p>
         {urlError ? (
           <div role="alert" className="bq-card" style={{ background: "var(--danger-bg)", color: "var(--signal-700)", marginBottom: 16 }}>
             {urlError}
           </div>
         ) : null}
         <GoogleButton />
-        <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "22px 0 18px", color: "var(--text-faint)", fontSize: 14, letterSpacing: "0.06em", textTransform: "uppercase" }}>
-          <hr style={{ flex: 1, border: 0, borderTop: "1px solid var(--line-hairline)" }} />
-          Already set up
-          <hr style={{ flex: 1, border: 0, borderTop: "1px solid var(--line-hairline)" }} />
-        </div>
-        <Button as="a" href="/owner/login" variant="ghost" block>
+        <div className="bq-or">or</div>
+        <Link href="/owner/login" className="bq-auth-textlink">
           Sign in to an existing boutique
-        </Button>
-        <p style={{ marginTop: 18, fontSize: 15, color: "var(--text-muted)" }}>Each boutique sees only its own customers and orders.</p>
-        <p style={{ marginTop: 12, fontSize: 15, color: "var(--text-muted)", display: "flex", gap: 16 }}>
+        </Link>
+        <p className="bq-auth-links">
           <Link href="/privacy">Privacy Policy</Link>
           <Link href="/terms">Terms &amp; Conditions</Link>
         </p>
