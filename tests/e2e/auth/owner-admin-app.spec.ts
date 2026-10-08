@@ -848,7 +848,7 @@ test.describe("Android app: full screen", () => {
   });
 
   test("home page is trimmed: Google, or, sign in, legal links", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/site");
     const card = page.locator(".bq-auth-card");
     await expect(card).not.toContainText("No password to remember");
     await expect(card).not.toContainText("Each boutique sees only");
@@ -953,5 +953,29 @@ test.describe("Notifications and announcements", () => {
     await page.waitForURL("**/owner/dashboard");
     await expect(page.locator(".bq-shell-mobile .bq-appbar__title")).toHaveText("Home");
     await expect(bell(page)).toHaveCount(0);
+  });
+});
+
+test.describe("Site map: landing at /, sign-in at /site", () => {
+  test("/ is the landing page; the sign-in home lives at /site", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator(".bq-lp")).toBeVisible();
+    await page.goto("/site");
+    await expect(page.getByRole("link", { name: "Sign in to an existing boutique" })).toBeVisible();
+  });
+
+  test("inside the Android app, / goes straight to /site", async ({ page }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(window, "ReactNativeWebView", { value: { postMessage: () => {} } });
+    });
+    await page.goto("/");
+    await page.waitForURL("**/site");
+  });
+
+  test("/admin and /owner open their sign-in when signed out", async ({ page }) => {
+    await page.goto("/admin");
+    await page.waitForURL("**/admin/login");
+    await page.goto("/owner");
+    await page.waitForURL("**/owner/login");
   });
 });

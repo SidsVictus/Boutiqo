@@ -67,14 +67,14 @@ test.describe("Google sign-in", () => {
   });
 
   test("from the home page too", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/site");
     await page.getByRole("button", { name: "Continue with Google" }).click();
     await page.waitForURL((u) => u.pathname === "/owner/register");
   });
 
   test("existing owner goes straight to the dashboard", async ({ page, request }) => {
     await seedOwner(request, "priya.google@gmail.com", { name: "Priya Sharma", password: null });
-    await page.goto("/");
+    await page.goto("/site");
     await page.getByRole("button", { name: "Continue with Google" }).click();
     await page.waitForURL("**/owner/dashboard");
   });
@@ -92,7 +92,7 @@ test.describe("Google sign-in", () => {
       users: [{ email: "priya.google@gmail.com", name: "Priya Sharma" }],
       boutiques: [{ ownerEmail: "priya.google@gmail.com", name: "Old", owner_name: "Priya", category: "X", status: "disabled" }],
     });
-    await page.goto("/");
+    await page.goto("/site");
     await page.getByRole("button", { name: "Continue with Google" }).click();
     await page.waitForURL("**/owner/login?error=disabled");
     await expect(alertBox(page)).toContainText("disabled");

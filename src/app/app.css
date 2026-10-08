@@ -739,12 +739,14 @@
    design-system LoadCell's 5-level blush/signal scale) ---------- */
 .bq-calendar-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  /* minmax(0, …): seven columns always fit the phone's width. */
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 6px;
 }
 .bq-calendar-cell {
   aspect-ratio: 1/1;
-  min-height: 56px;
+  min-width: 0;
+  min-height: 44px;
   border-radius: var(--radius-sm);
   border: 2px solid transparent;
   display: flex;
