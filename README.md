@@ -61,6 +61,5 @@ The source code in this repository is available under the
 The Boutiqo name, logo, site copy, illustrations, and documentation content
 are **not** covered by that licence and remain © 2026 SidsVictus — all
 rights reserved. See [LICENSE](LICENSE) for the full terms, including the
-excluded-materials notice. Third-party dependencies keep their own
-licences, and font binaries are not shipped with this repository
-(`public/fonts/README.md`).
+excluded-materials notice. 
+
