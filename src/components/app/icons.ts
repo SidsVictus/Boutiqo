@@ -29,4 +29,6 @@ export {
   ImageIcon,
   Eye,
   EyeOff,
+  Bell,
+  Megaphone,
 } from "lucide-react";

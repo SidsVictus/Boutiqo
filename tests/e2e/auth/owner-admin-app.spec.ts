@@ -51,7 +51,8 @@ test.describe("Owner app", () => {
     const title = page.locator(".bq-shell-mobile .bq-appbar__title");
     expect(tabsBox.y).toBeLessThan(5); // at the very top, under the status bar
     expect((await title.boundingBox())!.y).toBeGreaterThan(tabsBox.y); // title row below it
-    await expect(page.locator(".bq-shell-mobile").getByRole("link", { name: "Sign out" })).toBeVisible();
+    // No sign-out in the top bar any more; it lives at the bottom of Settings.
+    await expect(page.locator(".bq-shell-mobile .bq-mobile-top").getByRole("link", { name: "Sign out" })).toHaveCount(0);
 
     await tabs.getByRole("link", { name: "Settings" }).click();
     await page.waitForURL("**/owner/settings");
@@ -247,9 +248,9 @@ test.describe("Owner app", () => {
       Object.defineProperty(window, "ReactNativeWebView", {
         value: {
           postMessage(raw: string) {
-            w.__posts.push(raw);
             const m = JSON.parse(raw);
             if (m.type !== "boutiqo:voice") return;
+            w.__posts.push(raw);
             if (m.action === "start") {
               setTimeout(() => send({ type: "start" }), 30);
               const phrase = w.__phrases.shift();
@@ -297,6 +298,7 @@ test.describe("Owner app", () => {
       Object.defineProperty(window, "ReactNativeWebView", {
         value: {
           postMessage(raw: string) {
+            if (JSON.parse(raw).type !== "boutiqo:voice") return;
             w.__posts.push(raw);
             if (JSON.parse(raw).action === "start") {
               setTimeout(() => send({ type: "error", code: "not-allowed", message: "Microphone permission is off.", canAskAgain: false }), 30);
@@ -486,10 +488,12 @@ test.describe("Super admin", () => {
     await expect(page.getByText("Lotus Boutique is now active.")).toBeVisible();
     expect((await tables(request)).boutiques.find((b: { name: string }) => b.name === "Lotus Boutique").status).toBe("active");
 
-    // Roles page loads; sign out from the mobile top bar.
+    // Roles page loads; sign out from the bottom of the admin Home page.
     await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Admin roles" }).click();
     await expect(main.getByText("Read Only", { exact: true })).toBeVisible();
-    await page.locator(".bq-shell-mobile").getByRole("link", { name: "Sign out" }).click();
+    await expect(page.locator(".bq-shell-mobile .bq-mobile-top").getByRole("link", { name: "Sign out" })).toHaveCount(0);
+    await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Home" }).click();
+    await main.getByRole("link", { name: "Sign out" }).click();
     await expect(page.getByRole("heading", { name: "Signed out" })).toBeVisible();
     await page.goto("/admin/dashboard");
     await page.waitForURL("**/admin/login");
@@ -811,5 +815,143 @@ test.describe("Admin adds a boutique on a laptop; the owner signs in on their ph
     const { ctx, laptop } = await adminAdds(browser, request, OWNER);
     await expect(laptop.locator(".bq-shell-web").getByText("This email already owns a boutique on Boutiqo")).toBeVisible();
     await ctx.close();
+  });
+});
+
+test.describe("Android app: full screen", () => {
+  test("pages pad themselves for the phone's bars, and ask for light/dark status-bar icons", async ({ page, request }) => {
+    await seedOwner(request);
+    await page.addInitScript(() => {
+      const w = window as unknown as { __bars: string[] };
+      w.__bars = [];
+      Object.defineProperty(window, "ReactNativeWebView", {
+        value: { postMessage: (raw: string) => { const m = JSON.parse(raw); if (m.type === "boutiqo:statusbar") w.__bars.push(m.style); } },
+      });
+      // What android/src/edge.ts injects before the page loads: status bar 32px, navigation bar 24px.
+      (window as unknown as { BoutiqoInsets: unknown }).BoutiqoInsets = { top: 32, bottom: 24 };
+      document.documentElement.style.setProperty("--bq-shell-inset-top", "32px");
+      document.documentElement.style.setProperty("--bq-shell-inset-bottom", "24px");
+    });
+    const bars = () => page.evaluate(() => (window as unknown as { __bars: string[] }).__bars);
+
+    await page.goto("/owner/login");
+    await expect.poll(async () => (await bars()).at(-1)).toBe("light"); // dark carpet behind the status bar
+    // The card sits at the mockup's 130/794 mark, never under the 32px status bar.
+    await expect.poll(() => page.locator(".bq-auth-card").evaluate((el) => el.getBoundingClientRect().top)).toBeGreaterThanOrEqual(48);
+
+    await page.getByLabel("Email").fill(OWNER);
+    await page.getByLabel(/^Password/).fill(PASSWORD);
+    await page.getByRole("button", { name: "Log in" }).click();
+    await page.waitForURL("**/owner/dashboard");
+    await expect.poll(async () => (await bars()).at(-1)).toBe("dark"); // light app pages
+    await expect.poll(() => page.locator(".bq-shell-mobile .bq-mobile-top").evaluate((el) => getComputedStyle(el).paddingTop)).toBe("32px");
+  });
+
+  test("home page is trimmed: Google, or, sign in, legal links", async ({ page }) => {
+    await page.goto("/");
+    const card = page.locator(".bq-auth-card");
+    await expect(card).not.toContainText("No password to remember");
+    await expect(card).not.toContainText("Each boutique sees only");
+    await expect(card).not.toContainText(/already set up/i);
+    await expect(card.getByRole("button", { name: "Continue with Google" })).toBeVisible();
+    await expect(card.getByRole("link", { name: "Sign in to an existing boutique" })).toHaveAttribute("href", "/owner/login");
+  });
+});
+
+test.describe("Notifications and announcements", () => {
+  const bell = (page: Page) => page.locator(".bq-shell-mobile").getByRole("button", { name: /^Notifications/ });
+
+  test("owner: activity shows in the bell with an unread badge; tapping opens the record; seen state is saved", async ({ page, request }) => {
+    await seedOwner(request);
+    await login(page);
+    await page.waitForURL("**/owner/dashboard");
+    const res = await page.request.post("/api/customers", { data: { name: "Kavya Rao", phone: "" } });
+    expect(res.ok()).toBeTruthy();
+    const customer = (await res.json()).data;
+
+    await page.reload();
+    await expect(bell(page)).toHaveAccessibleName("Notifications, 1 new");
+    await bell(page).click();
+    const panel = page.locator(".bq-shell-mobile").getByRole("dialog", { name: "Notifications" });
+    await expect(panel).toContainText("Added your 2nd customer: Kavya Rao"); // Aisha (seeded) is the 1st
+    await panel.getByRole("button", { name: /Kavya Rao/ }).click();
+    await page.waitForURL(`**/owner/customers/${customer.id}`);
+    await expect(bell(page)).toHaveAccessibleName("Notifications");
+
+    await page.reload(); // stays read
+    await expect(bell(page)).toHaveAccessibleName("Notifications");
+  });
+
+  test("admin announces from Boutiques; every boutique owner gets it and can open the message", async ({ page, browser, request }) => {
+    await mock(request, "seed", {
+      users: [{ email: "ops@boutiqo.dev", password: PASSWORD }, { email: OWNER, password: PASSWORD }, { email: "b2@gmail.com", password: PASSWORD }],
+      admins: [{ email: "ops@boutiqo.dev", name: "Sids", role: "owner_admin" }],
+      boutiques: [
+        { ownerEmail: OWNER, name: "Lotus Boutique", owner_name: "Anitha", category: "T", area: "A" },
+        { ownerEmail: "b2@gmail.com", name: "Rose", owner_name: "Ram", category: "T", area: "B" },
+      ],
+    });
+    await login(page, "ops@boutiqo.dev", "/admin/login");
+    await page.waitForURL("**/admin/dashboard");
+    await page.goto("/admin/boutiques");
+    const main = page.locator(".bq-shell-mobile__content");
+    await main.getByRole("button", { name: "Announce" }).click();
+    const dlg = page.getByRole("dialog", { name: "New announcement" });
+    await dlg.getByRole("button", { name: "Send to all boutiques" }).click();
+    await expect(dlg.getByText("Add both a heading and a message.")).toBeVisible();
+    await dlg.getByLabel(/^Heading/).fill("Short maintenance tonight");
+    await dlg.getByLabel(/^Message/).fill("Boutiqo will be unavailable from 11:00 to 11:30 pm.\nYour data is safe.");
+    await dlg.getByRole("button", { name: "Send to all boutiques" }).click();
+    await expect(page.getByText("Announcement sent to 2 boutiques.")).toBeVisible();
+    await expect(dlg).toBeHidden();
+    // Admin's own log
+    await bell(page).click();
+    await expect(page.locator(".bq-shell-mobile").getByRole("dialog", { name: "Notifications" })).toContainText("Announcement sent by Sids: Short maintenance tonight");
+
+    for (const email of [OWNER, "b2@gmail.com"]) {
+      const ctx = await browser.newContext({ ...(await import("@playwright/test")).devices["Pixel 7"], baseURL: "http://localhost:3210" });
+      const p = await ctx.newPage();
+      await login(p, email);
+      await p.waitForURL("**/owner/dashboard");
+      await expect(bell(p)).toHaveAccessibleName(/Notifications, \d+ new/);
+      await bell(p).click();
+      const panel = p.locator(".bq-shell-mobile").getByRole("dialog", { name: "Notifications" });
+      await expect(panel).toContainText("Announcement");
+      await panel.getByRole("button", { name: /Short maintenance tonight/ }).click();
+      const read = p.getByRole("dialog", { name: "Short maintenance tonight" });
+      await expect(read).toContainText("Boutiqo will be unavailable from 11:00 to 11:30 pm.");
+      await expect(read).toContainText("Your data is safe.");
+      await ctx.close();
+    }
+  });
+
+  test("viewer admins can't announce (button disabled, API refuses)", async ({ page, request }) => {
+    await mock(request, "seed", {
+      users: [{ email: "viewer@boutiqo.dev", password: PASSWORD }],
+      admins: [{ email: "viewer@boutiqo.dev", name: "Vee", role: "viewer" }],
+    });
+    await login(page, "viewer@boutiqo.dev", "/admin/login");
+    await page.waitForURL("**/admin/dashboard");
+    await page.goto("/admin/boutiques");
+    await expect(page.locator(".bq-shell-mobile__content").getByRole("button", { name: "Announce" })).toBeDisabled();
+    const res = await page.request.post("/api/admin/announcements", { data: { title: "x", body: "y" } });
+    expect(res.status()).toBe(403);
+    expect((await tables(request)).announcements).toHaveLength(0);
+  });
+
+  test("owners can't post announcements or fake notifications", async ({ page, request }) => {
+    await seedOwner(request);
+    await login(page);
+    await page.waitForURL("**/owner/dashboard");
+    expect((await page.request.post("/api/admin/announcements", { data: { title: "x", body: "y" } })).status()).toBe(403);
+  });
+
+  test("before the database migration is applied, the bell simply stays hidden", async ({ page, request }) => {
+    await seedOwner(request);
+    await page.route("**/rest/v1/notifications**", (r) => r.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ code: "PGRST205", message: "Could not find the table 'public.notifications' in the schema cache" }) }));
+    await login(page);
+    await page.waitForURL("**/owner/dashboard");
+    await expect(page.locator(".bq-shell-mobile .bq-appbar__title")).toHaveText("Home");
+    await expect(bell(page)).toHaveCount(0);
   });
 });

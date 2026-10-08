@@ -15,14 +15,14 @@ export default function AdminSignoutPage() {
 
   return (
     <main className="bq-auth-bg">
-      <div className="bq-auth-card" style={{ textAlign: "center" }}>
-        <div className="bq-auth-brand" style={{ justifyContent: "center" }}>
-          Boutiqo admin
+      <div className="bq-auth-card">
+        <div className="bq-auth-brand">
+          Boutiqo
         </div>
         <div style={{ margin: "12px auto", width: 56, height: 56, borderRadius: "999px", background: "var(--success-bg)", color: "var(--green-700)", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Check size={26} />
         </div>
-        <h1 className="bq-brand" style={{ fontSize: 22, marginBottom: 4 }}>
+        <h1 className="bq-auth-title">
           Signed out
         </h1>
         <Button as="a" href="/admin/login" block>

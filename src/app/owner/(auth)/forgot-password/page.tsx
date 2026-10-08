@@ -48,8 +48,8 @@ export default function ForgotPasswordPage() {
         </div>
         {sentTo ? (
           <>
-            <h1 style={{ fontSize: 21, fontFamily: "var(--font-sans)", fontWeight: 700, marginBottom: 4 }}>Check your email</h1>
-            <p style={{ color: "var(--text-muted)", marginBottom: 20 }} role="status">
+            <h1 className="bq-auth-title">Check your email</h1>
+            <p className="bq-auth-sub" role="status">
               If an account exists for <strong>{sentTo}</strong>, we&apos;ve sent a link to reset your password. It may take a minute to arrive; check your spam folder too.
             </p>
             <Button as="a" href="/owner/login" block>
@@ -64,8 +64,8 @@ export default function ForgotPasswordPage() {
           </>
         ) : (
           <>
-            <h1 style={{ fontSize: 21, fontFamily: "var(--font-sans)", fontWeight: 700, marginBottom: 4 }}>Forgot password?</h1>
-            <p style={{ color: "var(--text-muted)", marginBottom: 20 }}>Enter your account email and we&apos;ll send you a link to set a new password.</p>
+            <h1 className="bq-auth-title">Forgot password?</h1>
+            <p className="bq-auth-sub">Enter your account email and we&apos;ll send you a link to set a new password.</p>
             {banner ? (
               <div role="alert" className="bq-card" style={{ background: "var(--danger-bg)", color: "var(--signal-700)", marginBottom: 16 }}>
                 {banner}
@@ -77,7 +77,7 @@ export default function ForgotPasswordPage() {
                 {loading ? "Sending…" : "Send reset link"}
               </Button>
             </form>
-            <p style={{ marginTop: 18, fontSize: 16 }}>
+            <p className="bq-auth-foot">
               Remembered it? <Link href="/owner/login">Log in</Link>
             </p>
           </>
