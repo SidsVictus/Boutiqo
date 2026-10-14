@@ -8,8 +8,10 @@
  * policy (see docs/phase1-report.md "Known limitations"). R2 is S3-compatible, so this
  * exercises the exact same code path (src/lib/r2.ts) against a real S3-protocol server
  * — presigned URL generation, PutObject, GetObject, DeleteObject all execute for real,
- * only the endpoint differs. Point R2_ENDPOINT at nothing (unset) to run this same
- * client against live R2.
+ * only the endpoint differs. ENV_OVERRIDES below makes the file self-contained: it
+ * points R2_ENDPOINT at s3rver and switches to s3rver's built-in S3RVER/S3RVER key
+ * pair (the only one the mock validates). Remove the overrides to run the same client
+ * against live R2 instead.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import S3rver from "s3rver";
@@ -29,6 +31,24 @@ import path from "node:path";
 import fs from "node:fs";
 
 const PORT = 4569;
+const TEST_BUCKET = "boutiqo-dev";
+
+// Self-contained mock setup: without R2_ENDPOINT, src/lib/r2.ts falls back to
+// live Cloudflare R2 (unreachable here), and s3rver only validates its built-in
+// S3RVER/S3RVER key pair (node_modules/s3rver/lib/models/account.js). Override
+// for the duration of this file and restore in afterAll.
+const ENV_OVERRIDES: Record<string, string> = {
+  R2_ENDPOINT: `http://127.0.0.1:${PORT}`,
+  R2_ACCESS_KEY_ID: "S3RVER",
+  R2_SECRET_ACCESS_KEY: "S3RVER",
+  R2_BUCKET_NAME: TEST_BUCKET,
+};
+const ORIGINAL_ENV: Record<string, string | undefined> = {};
+for (const [key, value] of Object.entries(ENV_OVERRIDES)) {
+  ORIGINAL_ENV[key] = process.env[key];
+  process.env[key] = value;
+}
+
 let server: InstanceType<typeof S3rver>;
 
 beforeAll(async () => {
@@ -39,7 +59,7 @@ beforeAll(async () => {
     silent: true,
     directory: dir,
     vhostBuckets: false,
-    configureBuckets: [{ name: "boutiqo-dev" }],
+    configureBuckets: [{ name: TEST_BUCKET }],
   });
   await server.run();
 });
@@ -48,6 +68,10 @@ afterAll(async () => {
   await new Promise<void>((resolve, reject) =>
     server.close((err?: Error) => (err ? reject(err) : resolve())),
   );
+  for (const [key, value] of Object.entries(ORIGINAL_ENV)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
 });
 
 describe("buildObjectKey", () => {

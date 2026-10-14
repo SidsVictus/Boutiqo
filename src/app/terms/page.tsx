@@ -73,25 +73,20 @@ export default function TermsPage() {
         The Service is provided &quot;as is&quot; and &quot;as available&quot;. To the extent the law allows, we disclaim implied warranties, such as fitness for a particular purpose. Calculations shown in the app, such as balances and due dates, are aids: you remain responsible for your business decisions and dealings with your customers.
       </p>
 
-      <h2>10. Limitation of liability</h2>
-      <p>
-        To the extent the law allows, Boutiqo is not liable for indirect, incidental or consequential losses, or for lost profits, revenue or data. Our total liability for any claim relating to the Service is limited to the amount you paid us for the Service in the 12 months before the claim, or ₹1,000 if you paid nothing. Nothing in these Terms limits liability that cannot be limited by law.
-      </p>
-
-      <h2>11. Indemnity</h2>
+      <h2>10. Indemnity</h2>
       <p>
         You agree to compensate Boutiqo for claims and losses arising from Your Data or from your breach of these Terms or of the law, including claims by your customers.
       </p>
 
-      <h2>12. Changes to these Terms</h2>
+      <h2>11. Changes to these Terms</h2>
       <p>
         We may update these Terms. We will change the &quot;Last updated&quot; date above and, for significant changes, notify you in the app or by email. If you keep using Boutiqo after changes take effect, you accept the updated Terms.
       </p>
 
-      <h2>13. Governing law</h2>
+      <h2>12. Governing law</h2>
       <p>These Terms are governed by the laws of India. Courts in Hyderabad, Telangana have exclusive jurisdiction, subject to any rights you have under applicable consumer law.</p>
 
-      <h2>14. Contact</h2>
+      <h2>13. Contact</h2>
       <p>
         Questions about these Terms? Contact us at <ContactLine />.
       </p>

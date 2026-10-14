@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Logo } from "@/components/app/Logo";
 
 /** Last time either legal page was materially changed. Update both pages' text and this date together. */
-export const LEGAL_LAST_UPDATED = "2 October 2026";
+export const LEGAL_LAST_UPDATED = "8 October 2026";
 
 /**
  * Public contact address for privacy and support requests. Set
