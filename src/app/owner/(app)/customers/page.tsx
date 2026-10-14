@@ -56,7 +56,7 @@ export default function OwnerCustomersPage() {
             <Link key={c.id} href={`/owner/customers/${c.id}`} className="bq-order-row">
               <div className="bq-order-row__main">
                 <span className="bq-order-row__title">{c.name}</span>
-                <span className="bq-order-row__meta">{c.phone || "No phone on file"}</span>
+                <span className="bq-order-row__meta">{c.phone || "Phone number not added "}</span>
               </div>
             </Link>
           ))}
