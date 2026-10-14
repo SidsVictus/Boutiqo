@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ContactLine, LegalPage } from "@/components/legal/LegalPage";
 
 export const metadata: Metadata = {
-  title: "Terms & Conditions · Boutiqo",
+  title: "Boutiqo",
   description: "The terms that apply to using Boutiqo.",
 };
 
