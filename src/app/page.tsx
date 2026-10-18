@@ -22,7 +22,7 @@ import {
  */
 
 export const metadata: Metadata = {
-  title: "Boutiqo — your order book, on your phone",
+  title: "Boutiqo",
   description:
     "Orders, measurements, delivery dates and payments — one app for your boutique. Get the Boutiqo Android app.",
 };
