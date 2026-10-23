@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ContactLine, LegalPage } from "@/components/legal/LegalPage";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy · Boutiqo",
+  title: "Boutiqo",
   description: "How Boutiqo collects, uses, stores and protects information.",
 };
 

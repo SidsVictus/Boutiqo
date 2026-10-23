@@ -979,3 +979,9 @@ test.describe("Site map: landing at /, sign-in at /site", () => {
     await page.waitForURL("**/owner/login");
   });
 });
+
+test("/download forwards to the latest APK on GitHub releases", async ({ request }) => {
+  const res = await request.get("/download", { maxRedirects: 0 });
+  expect(res.status()).toBe(302);
+  expect(res.headers().location).toBe("https://github.com/SidsVictus/Boutiqo/releases/latest/download/boutiqo.apk");
+});
