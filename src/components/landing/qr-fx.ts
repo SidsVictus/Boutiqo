@@ -7,14 +7,14 @@ export const QR_TOTAL = QR_SIZE + QUIET * 2;
 export const PAD = QR_TOTAL * 0.03;
 export const FIT = 1.06;
 export const PLUM = "#4a071e";
-export const CYCLE = 8.0;
+export const CYCLE = 6.0;
 const FOV = 40;
 
 /* timeline, seconds into the cycle */
-const A_SPAN = 1.0;
-const A_DUR = 2.0;
-const HOLD_T0 = 3.3; /* every tile landed + heat faded → pristine hold */
-const D_T0 = 7.0; /* dissolve begins */
+const A_SPAN = 0.6;
+const A_DUR = 1.4;
+const HOLD_T0 = 2.2; /* every tile landed + heat faded → pristine hold */
+const D_T0 = 5.0; /* dissolve begins: ~2.8s of still, scannable code per loop */
 const D_SPAN = 0.4;
 const D_DUR = 0.6;
 
@@ -175,10 +175,7 @@ export function startScene(
     last = now;
     time += dt;
 
-    /* assemble once, then hold the pristine code for good: phones need a
-       still, complete code to scan, so it never dissolves */
-    const elapsed = (now - start) / 1000;
-    const tC = elapsed < HOLD_T0 ? elapsed : (HOLD_T0 + D_T0) / 2;
+    const tC = ((now - start) / 1000) % CYCLE;
 
     /* camera: pointer parallax only — dead still when no pointer, so the
        code never drifts while someone is aiming a phone at it */
@@ -275,9 +272,10 @@ export function startScene(
     }
 
     /* particles: envelope + left-to-right drift */
-    const phase = Math.min(elapsed, CYCLE * 0.8) / CYCLE; /* dust fades out after the build, leaving a clean code */
+    /* dust swirls during the build and the dissolve, but is gone while the
+       code holds still, so nothing crosses it while a phone scans */
     const envelope =
-      phase < 0.12 ? phase / 0.12 : phase < 0.55 ? 1 : phase < 0.75 ? 1 - (phase - 0.55) / 0.2 : 0;
+      tC < 0.4 ? tC / 0.4 : tC < HOLD_T0 ? 1 - smoothstep(HOLD_T0 - 0.4, HOLD_T0, tC) : tC < D_T0 ? 0 : smoothstep(D_T0, D_T0 + 0.3, tC);
     dustA.mat.opacity = envelope * (0.7 + 0.15 * Math.sin(time * 2.4));
     dustB.mat.opacity = envelope * (0.16 + 0.06 * Math.sin(time * 1.7 + 2));
     for (let i = 0; i < dustA.n; i++) {
