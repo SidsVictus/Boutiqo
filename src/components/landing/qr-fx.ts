@@ -175,7 +175,10 @@ export function startScene(
     last = now;
     time += dt;
 
-    const tC = ((now - start) / 1000) % CYCLE;
+    /* assemble once, then hold the pristine code for good: phones need a
+       still, complete code to scan, so it never dissolves */
+    const elapsed = (now - start) / 1000;
+    const tC = elapsed < HOLD_T0 ? elapsed : (HOLD_T0 + D_T0) / 2;
 
     /* camera: pointer parallax only — dead still when no pointer, so the
        code never drifts while someone is aiming a phone at it */
@@ -272,7 +275,7 @@ export function startScene(
     }
 
     /* particles: envelope + left-to-right drift */
-    const phase = tC / CYCLE;
+    const phase = Math.min(elapsed, CYCLE * 0.8) / CYCLE; /* dust fades out after the build, leaving a clean code */
     const envelope =
       phase < 0.12 ? phase / 0.12 : phase < 0.55 ? 1 : phase < 0.75 ? 1 - (phase - 0.55) / 0.2 : 0;
     dustA.mat.opacity = envelope * (0.7 + 0.15 * Math.sin(time * 2.4));
