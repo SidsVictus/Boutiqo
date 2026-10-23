@@ -28,11 +28,11 @@ const PATH = buildPath();
 /**
  * Download-card visual — the EC-H QR of the download URL as a full
  * three.js scene: a slow vortex assembly where every tile spirals in
- * from a swirling shell over ~3s (radius, angle and depth all animating)
+ * from a swirling shell over ~2s (radius, angle and depth all animating)
  * with velocity streaks, tumble and white-hot → red → plum heat, snapping
- * into a place centre-first. From ~3.3s the code is completely pristine and
+ * into place centre-first. From ~2.2s the code is completely pristine and
  * still — no effects of any kind — until the same spiral plays backwards
- * to dissolve it at 7s (full loop 8s). Signal-red dust + bokeh drift
+ * to dissolve it at 8.2s (6s still; full loop 9.5s). Signal-red dust + bokeh drift
  * left to right; the camera only moves for pointer parallax. Static SVG
  * underneath is the fallback (reduced motion / no WebGL).
  */
