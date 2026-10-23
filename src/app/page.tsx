@@ -24,7 +24,7 @@ import {
 export const metadata: Metadata = {
   title: "Boutiqo",
   description:
-    "Orders, measurements, delivery dates and payments — one app for your boutique. Get the Boutiqo Android app.",
+    "Orders, measurements, delivery dates and payments, all in one app for your boutique. Get the Boutiqo Android app.",
 };
 
 const downloadLink = {
@@ -59,7 +59,7 @@ export default function LandingPage() {
             </h1>
             <HeroThread />
             <p className="bq-lp-lede">
-              Orders, measurements, delivery dates and payments — one app for
+              Orders, measurements, delivery dates and payments all in one app for
               your boutique.
             </p>
             <div className="bq-lp-cta">
