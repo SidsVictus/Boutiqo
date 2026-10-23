@@ -32,7 +32,7 @@ const PATH = buildPath();
  * with velocity streaks, tumble and white-hot → red → plum heat, snapping
  * into place centre-first. From ~2.2s the code is completely pristine and
  * still — no effects of any kind — until the same spiral plays backwards
- * to dissolve it at 5s (full loop 6s). Signal-red dust + bokeh drift
+ * to dissolve it at 8.2s (6s still; full loop 9.5s). Signal-red dust + bokeh drift
  * left to right; the camera only moves for pointer parallax. Static SVG
  * underneath is the fallback (reduced motion / no WebGL).
  */

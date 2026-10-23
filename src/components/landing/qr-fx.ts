@@ -7,14 +7,14 @@ export const QR_TOTAL = QR_SIZE + QUIET * 2;
 export const PAD = QR_TOTAL * 0.03;
 export const FIT = 1.06;
 export const PLUM = "#4a071e";
-export const CYCLE = 6.0;
+export const CYCLE = 9.5;
 const FOV = 40;
 
 /* timeline, seconds into the cycle */
 const A_SPAN = 0.6;
 const A_DUR = 1.4;
 const HOLD_T0 = 2.2; /* every tile landed + heat faded → pristine hold */
-const D_T0 = 5.0; /* dissolve begins: ~2.8s of still, scannable code per loop */
+const D_T0 = 8.2; /* dissolve begins: 6s of still, scannable code per loop */
 const D_SPAN = 0.4;
 const D_DUR = 0.6;
 
