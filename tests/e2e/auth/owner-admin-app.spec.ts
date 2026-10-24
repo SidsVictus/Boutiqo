@@ -134,7 +134,7 @@ test.describe("Owner app", () => {
 
     // B: cloth photo
     await main.locator('input[type="file"]').setInputFiles({ name: "cloth.png", mimeType: "image/png", buffer: PNG });
-    await expect(main.getByText("Selected — uploads with the order")).toBeVisible();
+    await expect(main.getByAltText("Cloth photo preview 1")).toBeVisible(); // held until the order exists
     await main.getByRole("button", { name: "Continue" }).click();
 
     // C: work details
@@ -406,7 +406,7 @@ test.describe("Owner app", () => {
     await page.goto(`/owner/orders/${order.id}`);
     await page.locator(".bq-shell-mobile__content input[type='file']").setInputFiles({ name: "c.png", mimeType: "image/png", buffer: PNG });
     await expect(page.getByText("Photo storage rejected the upload (error 403). Try again.")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Retry upload" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
   });
 });
 
