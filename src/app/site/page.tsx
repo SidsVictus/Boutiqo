@@ -11,7 +11,11 @@ import { useAuthPage } from "@/lib/auth/useAuthPage";
  * (or an admin, per SessionContext's unified `login`) goes to /owner/login.
  */
 export default function Home() {
-  const { urlError } = useAuthPage();
+  const { urlError, ready } = useAuthPage();
+
+  // Blank until the session check says nobody is signed in, so a returning
+  // user is never shown a form they don't need.
+  if (!ready) return <main className="bq-auth-bg" aria-busy="true" />;
 
   return (
     <main className="bq-auth-bg">

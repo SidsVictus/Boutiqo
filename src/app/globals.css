@@ -1,7 +1,6 @@
 /* Boutiqo — design tokens + component styles, ported verbatim from the design
    handoff bundle (_ds/boutiqo-design-system-.../). See README "Design system"
    for how these are wired up (plain CSS import, not a Tailwind token remap). */
-@import "../styles/tokens/fonts.css";
 @import "../styles/tokens/colors.css";
 @import "../styles/tokens/typography.css";
 @import "../styles/tokens/spacing.css";

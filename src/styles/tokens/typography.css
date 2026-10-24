@@ -1,7 +1,8 @@
 :root{
---font-display:"Svetze","Aptos Display",Georgia,serif;
---font-sans:"Aptos","Aptos Display",system-ui,sans-serif;
---font-mono:"Aptos Mono",ui-monospace,monospace;
+/* The --font-playfair/-inter/-jetbrains variables are set on <html> by next/font in app/layout.tsx. */
+--font-display:var(--font-playfair),"Playfair Display",Georgia,serif;
+--font-sans:var(--font-inter),"Inter",system-ui,sans-serif;
+--font-mono:var(--font-jetbrains),"JetBrains Mono",ui-monospace,monospace;
 /* Weights */
 --fw-light:300; /* @kind font */
 --fw-regular:400; /* @kind font */
@@ -23,7 +24,7 @@
 --ls-label:0.06em; /* @kind font */
 --ls-caps:0.12em; /* @kind font */
 
-/* Roles — display is Svetze, everything functional is Aptos */
+/* Roles — display is Playfair Display, everything functional is Inter */
 --type-brand-font:var(--font-display);
 --type-brand-size:var(--fs-5xl);
 --type-brand-lh:var(--lh-tight); /* @kind font */

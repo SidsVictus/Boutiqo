@@ -68,7 +68,18 @@ export default function CustomerTrackingPage() {
               {view.stage === "overdue" ? "This order is overdue." : `Your order is at: ${STAGES[view.stage]}.`}
             </p>
 
-            <RemoteImage status={view.clothPhotoUrl ? "ready" : "missing"} src={view.clothPhotoUrl ?? undefined} />
+            {view.clothPhotoUrls.length > 1 ? (
+              <div className="bq-photo-grid">
+                {view.clothPhotoUrls.map((url, i) => (
+                  <div key={url} className="bq-upload bq-upload--tile" style={{ borderStyle: "solid" }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element -- short-lived presigned URL */}
+                    <img src={url} alt={`Cloth photo ${i + 1}`} className="bq-upload__preview" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <RemoteImage status={view.clothPhotoUrls.length === 1 ? "ready" : "missing"} src={view.clothPhotoUrls[0]} />
+            )}
 
             <div className="bq-card" style={{ background: "var(--surface-sunken)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 16, marginBottom: 4 }}>

@@ -395,12 +395,13 @@ async function handleRest(req, res, url, path) {
     const o = state.tables.orders.find((r) => r.tracking_token === p_token);
     if (!o) return reply([]);
     const b = state.tables.boutiques.find((x) => x.id === o.boutique_id);
-    const f = state.tables.files.find((x) => x.id === o.cloth_photo_file_id && x.upload_status === "uploaded");
+    // 0014_multi_photo_orders.sql: every uploaded cloth photo, oldest first.
+    const keys = state.tables.files.filter((x) => x.order_id === o.id && x.kind === "cloth_photo" && x.upload_status === "uploaded").sort((a, c) => a.created_at.localeCompare(c.created_at)).map((x) => x.object_key);
     const overdue = !["ready", "delivered"].includes(o.stage) && o.due_date < new Date().toISOString().slice(0, 10);
     return reply([{
       order_code: o.order_code, garment_type: o.garment_type, stage: o.stage, effective_stage: overdue ? "overdue" : o.stage, due_date: o.due_date,
       total_amount: o.total_amount, advance_amount: o.advance_amount, balance_amount: o.total_amount - o.advance_amount, paid: o.paid,
-      boutique_name: b.name, boutique_phone: b.phone, cloth_object_key: f?.object_key ?? null,
+      boutique_name: b.name, boutique_phone: b.phone, cloth_object_key: keys[0] ?? null, cloth_object_keys: keys,
     }]);
   }
   const me = user && state.tables.admins.find((a) => a.user_id === user.id && a.active);
@@ -489,6 +490,11 @@ async function handleS3(req, res, url) {
     }
     objects.set(key, { body, type: req.headers["content-type"] || "application/octet-stream" });
     res.writeHead(200, { ETag: '"mock"', ...cors() });
+    return res.end();
+  }
+  if (req.method === "DELETE") {
+    objects.delete(key); // like S3, deleting a missing key still succeeds
+    res.writeHead(204, cors());
     return res.end();
   }
   const obj = objects.get(key);

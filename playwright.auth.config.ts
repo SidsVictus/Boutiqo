@@ -1,4 +1,10 @@
 import { defineConfig, devices } from "@playwright/test";
+import fs from "node:fs";
+
+// Use the sandbox's pre-installed Chromium when there is one (PLAYWRIGHT_CHROMIUM_PATH
+// overrides); otherwise leave it to Playwright's own browser download.
+const CHROMIUM_CANDIDATES = [process.env.PLAYWRIGHT_CHROMIUM_PATH, "/opt/pw-browsers/chromium-1194/chrome-linux/chrome", "/opt/pw-browsers/chromium"];
+const executablePath = CHROMIUM_CANDIDATES.find((p): p is string => !!p && fs.existsSync(p));
 
 // Offline end-to-end tests for every sign-in flow (tests/e2e/auth): the real
 // app and the real supabase-js client, against an in-memory stand-in for
@@ -18,7 +24,7 @@ export default defineConfig({
     baseURL: "http://localhost:3210",
     trace: "retain-on-failure",
     ...devices["Pixel 7"],
-    launchOptions: { executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" },
+    launchOptions: { executablePath },
   },
   webServer: [
     {

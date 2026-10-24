@@ -106,8 +106,8 @@ export default function OrderDetailPage() {
         </div>
       </Card>
 
-      <Card title="Cloth photo">
-        <ClothPhotoUpload boutiqueId={order.boutique_id} orderId={order.id} onAttached={load} />
+      <Card title="Cloth photos">
+        <ClothPhotoUpload boutiqueId={order.boutique_id} orderId={order.id} />
       </Card>
 
       {measurementsSet.length > 0 && (

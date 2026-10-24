@@ -1,180 +1,306 @@
 "use client";
 
 import * as React from "react";
-import { Camera, ImageIcon, Upload as UploadIcon } from "./icons";
+import { Camera, ImageIcon, Trash2, Upload as UploadIcon } from "./icons";
 import { Button } from "@/components/ds/Button";
-import { Badge } from "@/components/ds/Badge";
-import { ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, confirmUpload, presignUpload, uploadFileWithProgress } from "@/lib/data/uploads";
+import { ALLOWED_MIME_TYPES, confirmUpload, deleteClothPhoto, getDownloadUrl, listClothPhotos, presignUpload, runPool, uploadFileWithProgress } from "@/lib/data/uploads";
 import { ApiError } from "@/lib/data/store";
 
-type UploadState =
-  | { kind: "empty" }
-  | { kind: "invalid"; reason: string }
-  | { kind: "selected"; previewUrl: string; file: File } // deferred mode only — see below
-  | { kind: "uploading"; previewUrl: string; pct: number }
-  | { kind: "success"; previewUrl: string; fileId: string }
-  | { kind: "failed"; previewUrl: string; reason: string; file: File; fileId: string };
+/** How many photos upload at once. */
+const UPLOAD_CONCURRENCY = 3;
+
+/** A photo chosen in the new-order wizard, held until the order exists. */
+export interface PendingPhoto {
+  id: string;
+  file: File;
+  previewUrl: string;
+}
+
+// Local React keys. (crypto.randomUUID needs a secure context, which a dev server on a LAN address isn't.)
+let keySeq = 0;
+const nextKey = () => `photo-${++keySeq}`;
+
+export function toPendingPhotos(files: File[]): PendingPhoto[] {
+  return files.map((file) => ({ id: nextKey(), file, previewUrl: URL.createObjectURL(file) }));
+}
+
+type Tile =
+  | { key: string; kind: "saved"; fileId: string }
+  | { key: string; kind: "uploading"; previewUrl: string; pct: number }
+  | { key: string; kind: "uploaded"; previewUrl: string; fileId: string }
+  | { key: string; kind: "failed"; previewUrl: string; reason: string; file: File };
+
+function rejectedMessage(rejected: string[]): string {
+  return `${rejected.length === 1 ? rejected[0] : `${rejected.length} files`} not added. Only JPEG, PNG, WEBP or HEIC images are allowed.`;
+}
+
+function splitAllowed(fileList: FileList | null): { allowed: File[]; rejected: string[] } {
+  const allowed: File[] = [];
+  const rejected: string[] = [];
+  for (const file of Array.from(fileList ?? [])) {
+    if (ALLOWED_MIME_TYPES.includes(file.type as (typeof ALLOWED_MIME_TYPES)[number])) allowed.push(file);
+    else rejected.push(file.name);
+  }
+  return { allowed, rejected };
+}
+
+/** Presigns, PUTs to storage and confirms one photo. A PUT that doesn't go
+ * through is reported to the server so its row doesn't stay "pending". */
+export async function uploadClothPhoto(boutiqueId: string, orderId: string, file: File, onProgress: (pct: number) => void = () => {}): Promise<string> {
+  const { fileId, uploadUrl } = await presignUpload("cloth_photo", file.type, file.size, boutiqueId, orderId);
+  try {
+    await uploadFileWithProgress(uploadUrl, file, onProgress);
+    await confirmUpload(fileId);
+  } catch (err) {
+    await confirmUpload(fileId, "failed").catch(() => {});
+    throw err;
+  }
+  return fileId;
+}
+
+function failureMessage(err: unknown, fallback: string): string {
+  return err instanceof ApiError ? err.message : fallback;
+}
+
+const failureReason = (err: unknown) => failureMessage(err, "The photo upload failed. Check your connection and try again.");
 
 /**
- * Cloth photo capture/upload — replaces the prototype's <image-slot> placeholder.
- * Exercises every state from the Phase 2 brief §6: selection, client-side
- * validation, upload-in-progress (a real determinate bar, driven by XHR's
- * `upload.onprogress` — see docs/phase3-report.md "Upload progress: XHR vs.
- * fetch"), success, failure + retry, preview, delete. Unauthorized/missing-
- * file/expired-access are the *viewing* side's states — see RemoteImage.
+ * Cloth photos for an order — any number of them.
  *
- * `orderId`: pass a real order id to upload immediately (order-detail page).
- * Pass `null` for the new-order wizard's step B, where no order exists yet —
- * Phase 1's presign route requires a real, existing order id for a
- * `cloth_photo` upload (it looks the order up to authorize the upload), so
- * this mode only selects + validates + previews the file locally and reports
- * it via `onFileSelected`; the caller uploads it for real after the order is
- * created (see owner/(app)/orders/new/page.tsx). Documented in
- * docs/phase3-report.md "Cloth-photo-in-wizard mismatch".
+ * `orderId` set (order page): lists the photos already saved, and every file
+ * chosen uploads at once (a few at a time), each tile showing real byte-level
+ * progress (XHR `upload.onprogress`), then success, or the error with Retry.
+ *
+ * `orderId` null (new-order wizard, step B): no order exists yet, and the
+ * presign route needs one to authorize a cloth_photo upload, so the chosen
+ * files are only previewed and handed to the parent through
+ * `pending`/`onPendingChange`; the parent uploads them after the order is
+ * created (see owner/(app)/orders/new/page.tsx).
  */
 export function ClothPhotoUpload({
   boutiqueId,
   orderId,
   onAttached,
-  onFileSelected,
+  pending = [],
+  onPendingChange,
 }: {
   boutiqueId: string;
   orderId: string | null;
-  onAttached?: (fileId: string) => void;
-  onFileSelected?: (file: File) => void;
+  onAttached?: () => void;
+  pending?: PendingPhoto[];
+  onPendingChange?: (photos: PendingPhoto[]) => void;
 }) {
-  const [state, setState] = React.useState<UploadState>({ kind: "empty" });
+  const [tiles, setTiles] = React.useState<Tile[]>([]);
+  const [rejected, setRejected] = React.useState<string | null>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
-  function validate(file: File): string | null {
-    if (!ALLOWED_MIME_TYPES.includes(file.type as (typeof ALLOWED_MIME_TYPES)[number])) {
-      return "Only JPEG, PNG, WEBP or HEIC images are allowed.";
-    }
-    if (file.size > MAX_FILE_SIZE_BYTES) return "File is larger than 10MB.";
-    return null;
-  }
+  const patchTile = React.useCallback((key: string, next: Tile | null) => {
+    setTiles((all) => all.flatMap((t) => (t.key === key ? (next ? [next] : []) : [t])));
+  }, []);
 
-  async function startUpload(file: File, targetOrderId: string) {
-    const previewUrl = URL.createObjectURL(file);
-    setState({ kind: "uploading", previewUrl, pct: 0 });
+  React.useEffect(() => {
+    if (!orderId) return;
+    let cancelled = false;
+    listClothPhotos(orderId)
+      .then((rows) => {
+        if (cancelled) return;
+        setTiles((all) => {
+          const have = new Set(all.flatMap((t) => (t.kind === "uploaded" ? [t.fileId] : [])));
+          return [...rows.filter((r) => !have.has(r.id)).map((r) => ({ key: r.id, kind: "saved" as const, fileId: r.id })), ...all];
+        });
+      })
+      .catch(() => !cancelled && setRejected("Couldn't load this order's photos. Reload to try again."));
+    return () => {
+      cancelled = true;
+    };
+  }, [orderId]);
+
+  async function startUpload(file: File, key: string, targetOrderId: string, previewUrl: string) {
+    patchTile(key, { key, kind: "uploading", previewUrl, pct: 0 });
     try {
-      const { fileId, uploadUrl } = await presignUpload("cloth_photo", file.type, file.size, boutiqueId, targetOrderId);
-      await uploadFileWithProgress(uploadUrl, file, (pct) => setState((s) => (s.kind === "uploading" ? { ...s, pct } : s)));
-      await confirmUpload(fileId);
-      setState({ kind: "success", previewUrl, fileId });
-      onAttached?.(fileId);
+      const fileId = await uploadClothPhoto(boutiqueId, targetOrderId, file, (pct) => setTiles((all) => all.map((t) => (t.key === key && t.kind === "uploading" ? { ...t, pct } : t))));
+      patchTile(key, { key, kind: "uploaded", previewUrl, fileId });
+      onAttached?.();
     } catch (err) {
-      const reason = err instanceof ApiError ? err.message : "The upload failed. Check your connection and try again.";
-      setState({ kind: "failed", previewUrl, reason, file, fileId: "" });
+      patchTile(key, { key, kind: "failed", previewUrl, reason: failureReason(err), file });
     }
   }
 
   function handleFiles(fileList: FileList | null) {
-    const file = fileList?.[0];
-    if (!file) return;
-    const invalidReason = validate(file);
-    if (invalidReason) {
-      setState({ kind: "invalid", reason: invalidReason });
+    const { allowed, rejected: bad } = splitAllowed(fileList);
+    setRejected(bad.length ? rejectedMessage(bad) : null);
+    if (allowed.length === 0) return;
+    if (!orderId) {
+      onPendingChange?.([...pending, ...toPendingPhotos(allowed)]);
       return;
     }
-    if (orderId) {
-      void startUpload(file, orderId);
-    } else {
-      const previewUrl = URL.createObjectURL(file);
-      setState({ kind: "selected", previewUrl, file });
-      onFileSelected?.(file);
-    }
+    const batch = allowed.map((file) => ({ file, key: nextKey(), previewUrl: URL.createObjectURL(file) }));
+    setTiles((all) => [...all, ...batch.map((b) => ({ key: b.key, kind: "uploading" as const, previewUrl: b.previewUrl, pct: 0 }))]);
+    void runPool(batch, UPLOAD_CONCURRENCY, (b) => startUpload(b.file, b.key, orderId, b.previewUrl));
   }
 
-  function retry() {
-    if (state.kind === "failed" && orderId) void startUpload(state.file, orderId);
+  function retry(tile: Extract<Tile, { kind: "failed" }>) {
+    if (orderId) void startUpload(tile.file, tile.key, orderId, tile.previewUrl);
   }
 
-  function remove() {
-    setState({ kind: "empty" });
+  function removePending(photo: PendingPhoto) {
+    URL.revokeObjectURL(photo.previewUrl);
+    onPendingChange?.(pending.filter((p) => p.id !== photo.id));
   }
+
+  const count = orderId ? tiles.length : pending.length;
 
   return (
     <div>
       <input
         ref={inputRef}
         type="file"
+        multiple
         accept={ALLOWED_MIME_TYPES.join(",")}
         style={{ display: "none" }}
-        onChange={(e) => handleFiles(e.target.files)}
+        onChange={(e) => {
+          handleFiles(e.target.files);
+          e.target.value = ""; // so choosing the same photo again still fires
+        }}
       />
-      <div className="bq-upload">
-        {state.kind === "empty" && (
-          <>
-            <ImageIcon size={28} />
-            <span className="bq-field__hint">No cloth photo yet</span>
-          </>
-        )}
-        {state.kind === "invalid" && (
-          <>
-            <ImageIcon size={28} />
-            <span className="bq-field__error" style={{ textAlign: "center", padding: "0 16px" }}>
-              {state.reason}
-            </span>
-          </>
-        )}
-        {(state.kind === "uploading" || state.kind === "success" || state.kind === "failed" || state.kind === "selected") && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={state.previewUrl} alt="Cloth photo preview" className="bq-upload__preview" />
-        )}
-        {state.kind === "uploading" && (
-          <div style={{ position: "absolute", inset: 0, background: "rgba(43,4,17,.44)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10 }}>
-            <div className="bq-upload__progress-track">
-              <div className="bq-upload__progress-fill" style={{ width: `${state.pct}%` }} />
-            </div>
-            <span style={{ color: "#fff", fontSize: 15 }} className="bq-num">
-              Uploading… {state.pct}%
-            </span>
-          </div>
-        )}
-        {state.kind === "success" && (
-          <span className="bq-upload__badge">
-            <Badge tone="success">Uploaded</Badge>
-          </span>
-        )}
-        {state.kind === "selected" && (
-          <span className="bq-upload__badge">
-            <Badge tone="brand">Selected — uploads with the order</Badge>
-          </span>
-        )}
-        {state.kind === "failed" && (
-          <div style={{ position: "absolute", inset: 0, background: "rgba(43,4,17,.6)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, padding: 16 }}>
-            <span style={{ color: "#fff", fontSize: 15, textAlign: "center" }}>{state.reason}</span>
-            <Button variant="secondary" size="sm" onClick={retry}>
-              Retry upload
-            </Button>
-          </div>
-        )}
-      </div>
+      {count === 0 ? (
+        <div className="bq-upload">
+          <ImageIcon size={28} />
+          <span className="bq-field__hint">No cloth photos yet</span>
+        </div>
+      ) : (
+        <div className="bq-photo-grid">
+          {orderId
+            ? tiles.map((tile, i) => <PhotoTile key={tile.key} tile={tile} n={i + 1} onRetry={() => tile.kind === "failed" && retry(tile)} onDismiss={() => patchTile(tile.key, null)} onDeleted={() => patchTile(tile.key, null)} />)
+            : pending.map((photo, i) => (
+                <div key={photo.id} className="bq-upload bq-upload--tile">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={photo.previewUrl} alt={`Cloth photo preview ${i + 1}`} className="bq-upload__preview" />
+                  <button type="button" className="bq-photo-remove" aria-label={`Remove photo ${i + 1}`} onClick={() => removePending(photo)}>
+                    ×
+                  </button>
+                </div>
+              ))}
+        </div>
+      )}
+      {rejected ? (
+        <div className="bq-field__error" role="alert" style={{ marginTop: 8 }}>
+          {rejected}
+        </div>
+      ) : null}
       <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
         <Button variant="secondary" size="sm" iconLeft={<Camera size={16} />} onClick={() => inputRef.current?.click()}>
-          {state.kind === "empty" || state.kind === "invalid" ? "Take / choose photo" : "Replace photo"}
+          {count === 0 ? "Take / choose photos" : "Add more photos"}
         </Button>
-        {(state.kind === "success" || state.kind === "failed" || state.kind === "selected") && (
-          <Button variant="ghost" size="sm" onClick={remove}>
-            Remove
-          </Button>
-        )}
       </div>
       <div className="bq-field__hint" style={{ marginTop: 6 }}>
-        JPEG, PNG, WEBP or HEIC, up to 10MB.
+        JPEG, PNG, WEBP or HEIC. Add as many as you need.
       </div>
     </div>
   );
 }
 
-/** Uploads a file already selected in deferred mode (see above) once a real
- * order id exists. Used by the new-order wizard after `createOrder` succeeds. */
-export async function uploadDeferredClothPhoto(boutiqueId: string, orderId: string, file: File): Promise<string> {
-  const { fileId, uploadUrl } = await presignUpload("cloth_photo", file.type, file.size, boutiqueId, orderId);
-  await uploadFileWithProgress(uploadUrl, file, () => {});
-  await confirmUpload(fileId);
-  return fileId;
+function PhotoTile({ tile, n, onRetry, onDismiss, onDeleted }: { tile: Tile; n: number; onRetry: () => void; onDismiss: () => void; onDeleted: () => void }) {
+  if (tile.kind === "saved") return <SavedPhoto fileId={tile.fileId} n={n} onDeleted={onDeleted} />;
+  return (
+    <div className="bq-upload bq-upload--tile">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={tile.previewUrl} alt={tile.kind === "uploaded" ? `Cloth photo ${n}` : `Cloth photo preview ${n}`} className="bq-upload__preview" />
+      {tile.kind === "uploaded" && <DeletePhoto fileId={tile.fileId} n={n} onDeleted={onDeleted} />}
+      {tile.kind === "uploading" && (
+        <div className="bq-photo-overlay">
+          <div className="bq-upload__progress-track">
+            <div className="bq-upload__progress-fill" style={{ width: `${tile.pct}%` }} />
+          </div>
+          <span className="bq-num" style={{ color: "#fff", fontSize: 14 }}>
+            Uploading… {tile.pct}%
+          </span>
+        </div>
+      )}
+      {tile.kind === "failed" && (
+        <div className="bq-photo-overlay bq-photo-overlay--failed">
+          <span style={{ color: "#fff", fontSize: 14, textAlign: "center" }}>{tile.reason}</span>
+          <div style={{ display: "flex", gap: 6 }}>
+            <Button variant="secondary" size="sm" onClick={onRetry}>
+              Retry
+            </Button>
+            <Button variant="ghost" size="sm" onClick={onDismiss} style={{ color: "#fff" }}>
+              Dismiss
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** A photo already saved on the order: its short-lived download URL is fetched when the tile appears. */
+function SavedPhoto({ fileId, n, onDeleted }: { fileId: string; n: number; onDeleted: () => void }) {
+  const [url, setUrl] = React.useState<string | null | undefined>(undefined);
+  React.useEffect(() => {
+    let cancelled = false;
+    getDownloadUrl(fileId).then((u) => !cancelled && setUrl(u));
+    return () => {
+      cancelled = true;
+    };
+  }, [fileId]);
+  if (url === undefined) return <div className="bq-upload bq-upload--tile bq-skeleton" style={{ border: "none" }} />;
+  if (url === null) {
+    return (
+      <div className="bq-upload bq-upload--tile">
+        <UploadIcon size={22} />
+        <span className="bq-field__hint" style={{ textAlign: "center", padding: "0 8px" }}>
+          Photo unavailable
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div className="bq-upload bq-upload--tile" style={{ borderStyle: "solid" }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={url} alt={`Cloth photo ${n}`} className="bq-upload__preview" />
+      <DeletePhoto fileId={fileId} n={n} onDeleted={onDeleted} />
+    </div>
+  );
+}
+
+/** A delete button over a saved photo; asks "Delete this photo?" before removing it for good. */
+function DeletePhoto({ fileId, n, onDeleted }: { fileId: string; n: number; onDeleted: () => void }) {
+  const [step, setStep] = React.useState<"idle" | "confirm" | "deleting">("idle");
+  const [error, setError] = React.useState<string | null>(null);
+
+  async function remove() {
+    setStep("deleting");
+    setError(null);
+    try {
+      await deleteClothPhoto(fileId);
+      onDeleted();
+    } catch (err) {
+      setError(failureMessage(err, "Couldn't delete the photo. Try again."));
+      setStep("confirm");
+    }
+  }
+
+  if (step === "idle") {
+    return (
+      <button type="button" className="bq-photo-remove" aria-label={`Delete photo ${n}`} title="Delete photo" onClick={() => setStep("confirm")}>
+        <Trash2 size={15} />
+      </button>
+    );
+  }
+  return (
+    <div className="bq-photo-overlay bq-photo-overlay--failed" role="group" aria-label={`Delete photo ${n}?`}>
+      <span style={{ color: "#fff", fontSize: 14, textAlign: "center" }}>{error ?? "Delete this photo?"}</span>
+      <div style={{ display: "flex", gap: 6 }}>
+        <Button variant="danger" size="sm" onClick={() => void remove()} disabled={step === "deleting"}>
+          {step === "deleting" ? "Deleting…" : "Delete"}
+        </Button>
+        <Button variant="secondary" size="sm" onClick={() => setStep("idle")} disabled={step === "deleting"}>
+          Keep
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 /** Viewing-only states for a remote presigned R2 image — used on the customer

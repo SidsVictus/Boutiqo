@@ -8,10 +8,13 @@ import { AUTH_ERROR_MESSAGES } from "./redirects";
 /**
  * For signed-out entry pages (home, login, signup): once the session check
  * resolves, send people who are already signed in where they belong instead
- * of showing them a login form again. Also returns the message for an
- * `?error=` code set by /auth/callback or a guard.
+ * of showing them a login form again. `ready` is true only when the visitor
+ * really is signed out, so pages render their form only then (until it is
+ * known, they show a blank placeholder rather than a form that would flash
+ * and vanish). Also returns the message for an `?error=` code set by
+ * /auth/callback or a guard.
  */
-export function useAuthPage(): { urlError: string | null } {
+export function useAuthPage(): { urlError: string | null; ready: boolean } {
   const router = useRouter();
   const { session, draftSignup } = useSession();
   const [urlError, setUrlError] = React.useState<string | null>(null);
@@ -29,5 +32,6 @@ export function useAuthPage(): { urlError: string | null } {
     else if (draftSignup && !draftSignup.fields) router.replace("/owner/register");
   }, [session, draftSignup, router]);
 
-  return { urlError };
+  const ready = session === null && !(draftSignup && !draftSignup.fields);
+  return { urlError, ready };
 }

@@ -11,6 +11,9 @@ export interface TrackingView {
   paid: boolean;
   boutiqueName: string;
   boutiquePhone: string | null;
+  /** Every cloth photo on the order, oldest first. */
+  clothPhotoUrls: string[];
+  /** The first of them. */
   clothPhotoUrl: string | null;
 }
 
@@ -26,5 +29,7 @@ export async function getOrderTracking(token: string): Promise<TrackingView | nu
   if (res.status === 404) return null;
   if (!res.ok) return null;
   const body = await res.json().catch(() => null);
-  return (body?.data as TrackingView) ?? null;
+  const view = body?.data as (Omit<TrackingView, "clothPhotoUrls"> & { clothPhotoUrls?: string[] }) | undefined;
+  if (!view) return null;
+  return { ...view, clothPhotoUrls: view.clothPhotoUrls ?? (view.clothPhotoUrl ? [view.clothPhotoUrl] : []) };
 }

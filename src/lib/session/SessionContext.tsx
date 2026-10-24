@@ -76,23 +76,36 @@ interface PendingUser {
 }
 
 async function resolveSession(supabase: ReturnType<typeof createClient>): Promise<{ session: Session; pending: PendingUser | null }> {
+  // getSession() reads the stored session locally (refreshing it only if it has
+  // expired); getUser() would add a round trip to the auth server before
+  // anything could render, which kept the sign-in page on screen for seconds at
+  // startup. The two queries below are checked by Postgres against the same
+  // token (RLS), so a revoked or forged session simply returns nothing.
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: { session: stored },
+  } = await supabase.auth.getSession();
+  const user = stored?.user;
   if (!user) return { session: null, pending: null };
 
   // An admin's own row is visible via current_admin_self() even when
   // suspended (admins_select/is_admin() hide it once inactive — see
-  // supabase/migrations/0009_admin_self_lookup.sql) — check admin first since
-  // it's the narrower group.
-  const { data: adminRows } = await supabase.rpc("current_admin_self");
+  // supabase/migrations/0009_admin_self_lookup.sql) — admin takes precedence
+  // since it's the narrower group. Both lookups run at once.
+  const [{ data: adminRows, error: adminError }, { data: boutique, error: boutiqueError }] = await Promise.all([
+    supabase.rpc("current_admin_self"),
+    supabase.from("boutiques").select("*").eq("owner_user_id", user.id).maybeSingle(),
+  ]);
+  // The database refused the stored token (revoked, expired, or no network):
+  // treat as signed out rather than as a user mid-registration.
+  if (adminError && boutiqueError) return { session: null, pending: null };
+
   const admin = Array.isArray(adminRows) ? (adminRows[0] as AdminUser | undefined) : undefined;
   if (admin) {
     // Suspended: resolved as "suspended" at login time; a stale session just signs out.
     return { session: admin.active ? { kind: "admin", admin } : null, pending: null };
   }
 
-  const { data: boutique } = await supabase.from("boutiques").select("*").eq("owner_user_id", user.id).maybeSingle();
+  if (boutiqueError) return { session: null, pending: null };
   if (boutique) {
     return { session: boutique.status === "disabled" ? null : { kind: "owner", boutique: boutique as Boutique }, pending: null };
   }
@@ -107,8 +120,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = React.useState<Session | undefined>(undefined);
   const [draftSignup, setDraftSignup] = React.useState<DraftSignup | null>(null);
 
+  const inFlight = React.useRef<ReturnType<typeof resolveSession> | null>(null);
+
   const refreshSession = React.useCallback(async () => {
-    const { session: next, pending } = await resolveSession(supabase);
+    // The mount check and the auth listener's INITIAL_SESSION event both ask
+    // for a refresh at startup; share one lookup instead of running it twice.
+    const lookup = (inFlight.current ??= resolveSession(supabase).finally(() => {
+      inFlight.current = null;
+    }));
+    const { session: next, pending } = await lookup;
     setSession(next);
     // A signed-in user with no boutique is mid-registration. The draft lives
     // only in memory, so a full-page load (the Google OAuth redirect, an email
