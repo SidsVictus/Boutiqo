@@ -61,6 +61,11 @@ export async function confirmUpload(fileId: string, outcome: "uploaded" | "faile
   await apiFetch("/api/uploads/confirm", { method: "POST", body: JSON.stringify({ fileId, outcome }) });
 }
 
+/** DELETE /api/files/:id — removes a cloth photo from storage and from the order. */
+export async function deleteClothPhoto(fileId: string): Promise<void> {
+  await apiFetch(`/api/files/${fileId}`, { method: "DELETE" });
+}
+
 /** The order's uploaded cloth photos, oldest first. RLS limits this to the caller's own boutique. */
 export async function listClothPhotos(orderId: string): Promise<{ id: string }[]> {
   const { data, error } = await db()

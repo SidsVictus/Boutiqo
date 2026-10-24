@@ -1,9 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { Camera, ImageIcon, Upload as UploadIcon } from "./icons";
+import { Camera, ImageIcon, Trash2, Upload as UploadIcon } from "./icons";
 import { Button } from "@/components/ds/Button";
-import { ALLOWED_MIME_TYPES, confirmUpload, getDownloadUrl, listClothPhotos, presignUpload, runPool, uploadFileWithProgress } from "@/lib/data/uploads";
+import { ALLOWED_MIME_TYPES, confirmUpload, deleteClothPhoto, getDownloadUrl, listClothPhotos, presignUpload, runPool, uploadFileWithProgress } from "@/lib/data/uploads";
 import { ApiError } from "@/lib/data/store";
 
 /** How many photos upload at once. */
@@ -58,9 +58,11 @@ export async function uploadClothPhoto(boutiqueId: string, orderId: string, file
   return fileId;
 }
 
-function failureReason(err: unknown): string {
-  return err instanceof ApiError ? err.message : "The photo upload failed. Check your connection and try again.";
+function failureMessage(err: unknown, fallback: string): string {
+  return err instanceof ApiError ? err.message : fallback;
 }
+
+const failureReason = (err: unknown) => failureMessage(err, "The photo upload failed. Check your connection and try again.");
 
 /**
  * Cloth photos for an order — any number of them.
@@ -169,7 +171,7 @@ export function ClothPhotoUpload({
       ) : (
         <div className="bq-photo-grid">
           {orderId
-            ? tiles.map((tile, i) => <PhotoTile key={tile.key} tile={tile} n={i + 1} onRetry={() => tile.kind === "failed" && retry(tile)} onDismiss={() => patchTile(tile.key, null)} />)
+            ? tiles.map((tile, i) => <PhotoTile key={tile.key} tile={tile} n={i + 1} onRetry={() => tile.kind === "failed" && retry(tile)} onDismiss={() => patchTile(tile.key, null)} onDeleted={() => patchTile(tile.key, null)} />)
             : pending.map((photo, i) => (
                 <div key={photo.id} className="bq-upload bq-upload--tile">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -198,12 +200,13 @@ export function ClothPhotoUpload({
   );
 }
 
-function PhotoTile({ tile, n, onRetry, onDismiss }: { tile: Tile; n: number; onRetry: () => void; onDismiss: () => void }) {
-  if (tile.kind === "saved") return <SavedPhoto fileId={tile.fileId} n={n} />;
+function PhotoTile({ tile, n, onRetry, onDismiss, onDeleted }: { tile: Tile; n: number; onRetry: () => void; onDismiss: () => void; onDeleted: () => void }) {
+  if (tile.kind === "saved") return <SavedPhoto fileId={tile.fileId} n={n} onDeleted={onDeleted} />;
   return (
     <div className="bq-upload bq-upload--tile">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={tile.previewUrl} alt={tile.kind === "uploaded" ? `Cloth photo ${n}` : `Cloth photo preview ${n}`} className="bq-upload__preview" />
+      {tile.kind === "uploaded" && <DeletePhoto fileId={tile.fileId} n={n} onDeleted={onDeleted} />}
       {tile.kind === "uploading" && (
         <div className="bq-photo-overlay">
           <div className="bq-upload__progress-track">
@@ -232,7 +235,7 @@ function PhotoTile({ tile, n, onRetry, onDismiss }: { tile: Tile; n: number; onR
 }
 
 /** A photo already saved on the order: its short-lived download URL is fetched when the tile appears. */
-function SavedPhoto({ fileId, n }: { fileId: string; n: number }) {
+function SavedPhoto({ fileId, n, onDeleted }: { fileId: string; n: number; onDeleted: () => void }) {
   const [url, setUrl] = React.useState<string | null | undefined>(undefined);
   React.useEffect(() => {
     let cancelled = false;
@@ -256,6 +259,46 @@ function SavedPhoto({ fileId, n }: { fileId: string; n: number }) {
     <div className="bq-upload bq-upload--tile" style={{ borderStyle: "solid" }}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={url} alt={`Cloth photo ${n}`} className="bq-upload__preview" />
+      <DeletePhoto fileId={fileId} n={n} onDeleted={onDeleted} />
+    </div>
+  );
+}
+
+/** A delete button over a saved photo; asks "Delete this photo?" before removing it for good. */
+function DeletePhoto({ fileId, n, onDeleted }: { fileId: string; n: number; onDeleted: () => void }) {
+  const [step, setStep] = React.useState<"idle" | "confirm" | "deleting">("idle");
+  const [error, setError] = React.useState<string | null>(null);
+
+  async function remove() {
+    setStep("deleting");
+    setError(null);
+    try {
+      await deleteClothPhoto(fileId);
+      onDeleted();
+    } catch (err) {
+      setError(failureMessage(err, "Couldn't delete the photo. Try again."));
+      setStep("confirm");
+    }
+  }
+
+  if (step === "idle") {
+    return (
+      <button type="button" className="bq-photo-remove" aria-label={`Delete photo ${n}`} title="Delete photo" onClick={() => setStep("confirm")}>
+        <Trash2 size={15} />
+      </button>
+    );
+  }
+  return (
+    <div className="bq-photo-overlay bq-photo-overlay--failed" role="group" aria-label={`Delete photo ${n}?`}>
+      <span style={{ color: "#fff", fontSize: 14, textAlign: "center" }}>{error ?? "Delete this photo?"}</span>
+      <div style={{ display: "flex", gap: 6 }}>
+        <Button variant="danger" size="sm" onClick={() => void remove()} disabled={step === "deleting"}>
+          {step === "deleting" ? "Deleting…" : "Delete"}
+        </Button>
+        <Button variant="secondary" size="sm" onClick={() => setStep("idle")} disabled={step === "deleting"}>
+          Keep
+        </Button>
+      </div>
     </div>
   );
 }

@@ -183,3 +183,9 @@ returns `clothPhotoUrls` plus `clothPhotoUrl` (the first) for older clients.
 A PUT that doesn't go through is reported to `/api/uploads/confirm` with
 `outcome: "failed"`, so its row doesn't stay `pending`.
 
+Deleting a photo (`DELETE /api/files/:id`, owner only, cloth photos only) checks
+ownership with the caller's RLS-scoped read (`files` has no DELETE policy, so
+there is no way for an owner to delete a row directly), removes the R2 object
+first so a storage failure can be retried, then deletes the row with the
+service-role client. If it was the order's cover, the cover moves to the next
+oldest photo, or to none.

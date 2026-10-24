@@ -492,6 +492,11 @@ async function handleS3(req, res, url) {
     res.writeHead(200, { ETag: '"mock"', ...cors() });
     return res.end();
   }
+  if (req.method === "DELETE") {
+    objects.delete(key); // like S3, deleting a missing key still succeeds
+    res.writeHead(204, cors());
+    return res.end();
+  }
   const obj = objects.get(key);
   if (!obj) {
     res.writeHead(404, cors());
