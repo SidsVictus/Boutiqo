@@ -3,13 +3,6 @@
 Phone-first order book for small boutiques and tailors. A multi-tenant SaaS
 with three audiences:
 
-- **Boutique owners** — customers and measurements, orders across stages, a
-  colour-coded calendar, billing.
-- **Super admins** — a console for onboarding boutiques and managing who can
-  do what.
-- **Their customers** — a no-login tracking page (`/track/<token>`) shared
-  over WhatsApp, showing where an order is.
-
 **Production:** https://boutiqoo.netlify.app · **Repository:** https://github.com/SidsVictus/Boutiqo
 
 ## Stack
@@ -28,12 +21,6 @@ with three audiences:
   product-specific pieces in `src/components/app/`.
 - **Vitest** (unit/integration), **Playwright** (browser E2E).
 
-### Fonts
-
-Playfair Display (display), Inter (text) and JetBrains Mono (numerals), loaded
-with `next/font/google` in `src/app/layout.tsx` and exposed through
-`--font-display`, `--font-sans` and `--font-mono` in
-`src/styles/tokens/typography.css`. No font files are stored in the repo.
 
 ### Photo storage (R2 CORS)
 
@@ -62,15 +49,6 @@ domain). The Android app loads the same site, so it needs no separate entry.
 `src/lib/data/*` is the only thing screens read or write through — one module
 per resource. Reads go through the RLS-scoped Supabase client; writes that
 need privilege go through the API routes. There is no mock-data mode.
-
-## Android app
-
-`android/` is an Expo + React Native WebView shell that loads the production
-web app and ships as a directly-shared APK (version 1.1.1, not on Google
-Play). It adds no screens, backend, auth or storage of its own — web deploys
-reach Android users without a new APK. See `android/README.md` for building,
-distribution, native features (Google sign-in via browser tab, voice input
-for measurements) and the update model.
 
 ## Documentation
 
