@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# created by 1v1: fast subset for the loop (types, lint, unit tests); the full check runs in Step 6
+set -u
+cd "$(dirname "$0")"
+npx --no-install tsc --noEmit -p tsconfig.json || exit 1
+npx --no-install eslint . --ignore-pattern ".1v1/**" --ignore-pattern "_scratch/**" || exit 1
+npx --no-install vitest run || exit 1
+echo "verify-fast: green"

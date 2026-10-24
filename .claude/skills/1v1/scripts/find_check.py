@@ -11,12 +11,14 @@ VERIFY = f'''#!/usr/bin/env bash
 # {MARK}: the project's check command. Exit 0 = green. Run: bash ./verify
 set -u
 cd "$(dirname "$0")"
-step() {{ echo "verify: $1"; shift; "$@"; rc=$?; if [ $rc -ne 0 ]; then echo "verify: FAILED ($rc): $*"; exit 1; fi; }}
+failed=""
+step() {{ echo "verify: $1"; local name="$1"; shift; "$@"; rc=$?; if [ $rc -ne 0 ]; then echo "verify: FAILED ($rc): $name"; failed="$failed $name;"; fi; }}
 step "types"  npx --no-install tsc --noEmit -p tsconfig.json
 step "lint"   npx --no-install eslint . --ignore-pattern ".1v1/**" --ignore-pattern "_scratch/**"
 step "unit"   npx --no-install vitest run
 __EXTRA__
 __E2E__
+if [ -n "$failed" ]; then echo "verify: RED:$failed"; exit 1; fi
 echo "verify: green"
 '''
 

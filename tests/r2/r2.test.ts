@@ -38,6 +38,7 @@ const TEST_BUCKET = "boutiqo-dev";
 // S3RVER/S3RVER key pair (node_modules/s3rver/lib/models/account.js). Override
 // for the duration of this file and restore in afterAll.
 const ENV_OVERRIDES: Record<string, string> = {
+  R2_ACCOUNT_ID: "test", // only used to build the live R2 address, which R2_ENDPOINT replaces here
   R2_ENDPOINT: `http://127.0.0.1:${PORT}`,
   R2_ACCESS_KEY_ID: "S3RVER",
   R2_SECRET_ACCESS_KEY: "S3RVER",
