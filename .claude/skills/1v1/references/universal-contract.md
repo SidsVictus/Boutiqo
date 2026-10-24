@@ -5,8 +5,8 @@ Prepended to every task contract. The user approves it once, in Step 4. Each rul
 ## Integrity (the builder must not cheat)
 - **U1 No tampering.** Protected paths unchanged since `guard.py init`. Check: `guard.py check`.
 - **U2 No hard-coding.** Outputs derive from inputs. Check: breaker property tests on randomized and unseen inputs; a literal that mirrors a test expectation is a failure.
-- **U3 No fakes.** No stubs, mocks, placeholder returns, `pass`-only bodies, `NotImplementedError`, TODO/FIXME, or `unittest.mock` in shipped code. Check: `audit.py` (AST scan).
-- **U4 No swallowed errors.** No bare `except`, no `except Exception: pass`, no `# type: ignore` or `# noqa` added without a written reason in the contract. Check: `audit.py`.
+- **U3 No fakes.** No stubs, mocks, placeholder returns, empty bodies, "not implemented" throws, TODO/FIXME, or `vi.mock`/`jest.mock` in shipped code. Check: `audit.py`.
+- **U4 No swallowed errors.** No empty `catch {}` or `.catch(() => {})`, no `@ts-ignore` / `@ts-expect-error` / `@ts-nocheck` or `eslint-disable` added without a written reason in the contract. Check: `audit.py` (new findings since approval).
 - **U5 Real behaviour.** Every contract rule is exercised end to end through the public interface, not only by unit tests of internals. Check: breaker.
 
 ## Safety (high-stakes defaults)
@@ -19,7 +19,7 @@ Prepended to every task contract. The user approves it once, in Step 4. Each rul
 - **U12 Validate at the boundary.** Bad input is rejected with a clear typed error, never silently coerced.
 
 ## Quality
-- **U13 Types and lint clean.** `mypy` and `ruff` exit 0 with the project's config untouched.
+- **U13 Types and lint clean.** `tsc --noEmit` and `eslint` exit 0 with the project's config untouched.
 - **U14 Bounded resources.** No unbounded loop, recursion or memory growth on large input. Tests run under a timeout.
 - **U15 No new dependencies** without user approval.
 - **U16 Honest status.** The final report lists what failed, was untested, or was assumed. Omission counts as a failure.

@@ -1,4 +1,4 @@
-"""Tamper guard and referee. Run from the project root. State lives outside the project.
+"""Tamper guard and referee (TypeScript / Node edition). Run from the project root. State lives outside the project.
 
   guard.py freeze --check "<cmd>"   Step 4, after approval: lock tests, config, verify, CLAUDE.md, .claude/,
                                     contract and questions; record the checks and environment fingerprints
@@ -119,6 +119,7 @@ def freeze(check_cmd):
     if base is None: save(BASE, files); save(STATE / "approved_at.json", {"time": time.time()})
     else: changed = sorted(r for r in set(base) | set(files) if base.get(r) != files.get(r))
     fp, env = fingerprint(files), env_fingerprint()
+    subprocess.run([sys.executable, str(SKILL / "scripts" / "audit.py"), "--baseline"], cwd=ROOT, capture_output=True, text=True)
     save(FROZEN, {"time": time.time(), "check": check_cmd, "files": files, "changed_since_approval": changed,
                   "fingerprint": fp, "env": env})
     save(STRIKES, {"builder": 0, "breaker": 0, "orchestrator": 0})
@@ -145,16 +146,11 @@ def frozen_diff():
 
 
 def purge_pycache():
-    """Bytecode in the project is never trusted: delete it (the gates also read bytecode only from an empty prefix).
-    The builder's _scratch/ goes too, so no shipped code can depend on it."""
+    """The builder's _scratch/ is wiped before every check run, so no shipped code can depend on it."""
     def force(fn, p, exc):  # a read-only file must not survive the purge
         try: os.chmod(p, stat.S_IWRITE); fn(p)
         except OSError: pass
-    if (ROOT / BUILDER_SCRATCH).exists(): shutil.rmtree(ROOT / BUILDER_SCRATCH, onexc=force)
-    for dp, dns, _ in os.walk(ROOT):
-        for dn in list(dns):
-            if dn == "__pycache__":
-                shutil.rmtree(pathlib.Path(dp) / dn, ignore_errors=True); dns.remove(dn)
+    if (ROOT / BUILDER_SCRATCH).exists(): shutil.rmtree(ROOT / BUILDER_SCRATCH, **({"onexc": force} if sys.version_info >= (3, 12) else {"onerror": force}))
 
 
 def restore_frozen():
@@ -247,19 +243,15 @@ def init(force=False):
 
 def move(src_root, dst_root):
     """hide: every entry of .1v1/ except the builder's input and the probe goes to the state folder. reveal: back.
-    Caches that can hold traces of the breaker's tests go too: hypothesis's example database (failing inputs, holdout
-    included) is parked outside the project, and mypy/ruff/pytest caches are deleted (they regenerate)."""
-    hyp_src, hyp_dst = (ROOT / ".hypothesis", STATE / "hypothesis") if src_root == ROOT else (STATE / "hypothesis", ROOT / ".hypothesis")
-    if hyp_src.exists():
-        if hyp_dst.exists(): shutil.rmtree(hyp_dst, ignore_errors=True)
-        shutil.move(str(hyp_src), str(hyp_dst))
+    Test-runner output that can hold traces of the breaker's tests (Playwright's test-results/ and report folders) is
+    deleted when hiding: it regenerates."""
     if src_root == ROOT:
-        for c in (".mypy_cache", ".ruff_cache", ".pytest_cache"): shutil.rmtree(ROOT / c, ignore_errors=True)
+        for c in ("test-results", "playwright-report", "blob-report"): shutil.rmtree(ROOT / c, ignore_errors=True)
     base = src_root / ".1v1"
     if not base.exists(): return
     for child in list(base.iterdir()):
         r = ".1v1/" + child.name
-        if not is_hidden(r) or child.name == "__pycache__": continue
+        if not is_hidden(r): continue
         d = dst_root / r
         d.parent.mkdir(parents=True, exist_ok=True)
         if d.exists(): shutil.rmtree(d) if d.is_dir() else d.unlink()
@@ -306,112 +298,207 @@ def run_check(show=True):
     return c.returncode, out
 
 
-def junit_counts(xml_path):
-    """(tests, failures+errors, skipped) from a JUnit report, or None if pytest never wrote one."""
+NPX = shutil.which("npx") or "npx"
+
+
+def junit_cases(xml_path, base):
+    """Every test case in a JUnit report as (key, failed, skipped), or None if the runner never wrote one.
+    key = "<file relative to the project>::<test title>". Works for vitest and Playwright reports."""
     import xml.etree.ElementTree as ET
     try: root = ET.parse(xml_path).getroot()
     except (OSError, ET.ParseError): return None
-    suites = [root] if root.tag == "testsuite" else root.findall("testsuite")
-    n = lambda k: sum(int(s.get(k, 0) or 0) for s in suites)
-    return n("tests"), n("failures") + n("errors"), n("skipped")
+    out = []
+    for tc in root.iter("testcase"):
+        f = (tc.get("file") or tc.get("classname") or "").replace("\\", "/")
+        name = (tc.get("name") or "").strip()
+        if f and not f.startswith((".", "/")) and not (ROOT / f).exists() and (base / f).exists():
+            f = (base / f).resolve().relative_to(ROOT).as_posix() if (base / f).resolve().is_relative_to(ROOT) else f
+        if f.startswith(ROOT.as_posix() + "/"): f = f[len(ROOT.as_posix()) + 1:]
+        # Playwright names a case "file.spec.ts > describe > title" or "describe > title"; keep only the title path
+        if " > " in name and name.split(" > ", 1)[0].endswith((".ts", ".tsx", ".js", ".mjs")): name = name.split(" > ", 1)[1]
+        failed = tc.find("failure") is not None or tc.find("error") is not None
+        skipped = tc.find("skipped") is not None
+        out.append((f"{f}::{name}", failed, skipped))
+    return out
 
 
-def run_suite(path, sub, extra=()):
-    """Run one suite; return (exit code, last line, failed test keys like 'breaker/test_x.py::name').
-    The exit code alone is not trusted: code that kills pytest with exit status 0 (os._exit(0) at import) would pass.
-    pytest must also write a JUnit report showing at least one test ran and none failed."""
-    xml = STATE / f"junit-{sub}-{abs(hash(str(path))) % 10**8}.xml"
+def suite_files(paths):
+    """Split test files into Playwright specs (*.spec.ts) and vitest tests (*.test.ts)."""
+    files = []
+    for p in paths:
+        p = pathlib.Path(p)
+        if p.is_dir(): files += [q for q in sorted(p.rglob("*")) if q.is_file() and TEST_FILE_RE.search(q.name)]
+        elif p.exists(): files.append(p)
+    rels = [(f.resolve().relative_to(ROOT).as_posix() if f.resolve().is_relative_to(ROOT) else str(f)) for f in files]
+    return [r for r in rels if re.search(r"\.spec\.[cm]?[jt]sx?$", r)], [r for r in rels if re.search(r"\.test\.[cm]?[jt]sx?$", r)]
+
+
+def run_runner(kind, files, tag, show_output=False):
+    """Run one runner on the given files. Returns (exit code, output, cases or None)."""
+    xml = STATE / f"junit-{tag}-{kind}.xml"
     xml.unlink(missing_ok=True)
-    p = run([sys.executable, "-m", "pytest", str(path), "-q", "-rf", "-p", "no:cacheprovider", f"--junitxml={xml}", *extra])
-    counts = junit_counts(xml)
-    if p.returncode in (0, 1) and counts is None:
-        return 3, "pytest ended without writing its report (killed or exited early): no test can be trusted", set()
-    if p.returncode == 0 and counts and (counts[0] - counts[2] < 1 or counts[1] > 0):
-        return 3, f"report shows {counts[0]} tests, {counts[1]} failed, {counts[2]} skipped: not a real pass", set()
-    keys = set()
-    for node in re.findall(r"^FAILED (\S+)", p.stdout, re.M):
-        node = node.replace("\\", "/")
-        keys.add(sub + "/" + (node.split(sub + "/", 1)[1] if sub + "/" in node else node))
-    return p.returncode, (p.stdout.strip().splitlines() or [""])[-1], keys
+    env = clean_env()
+    if kind == "playwright":
+        env["PLAYWRIGHT_JUNIT_OUTPUT_NAME"] = str(xml)
+        cmd = [NPX, "playwright", "test", "-c", PW_CONFIG, "--reporter=list,junit", *files]
+    else:
+        cmd = [NPX, "vitest", "run", "-c", VITEST_CONFIG, "--reporter=default", "--reporter=junit", f"--outputFile.junit={xml}", *files]
+    p = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace", env=env)
+    return p.returncode, (p.stdout + p.stderr), junit_cases(xml, ROOT)
+
+
+def run_suite(paths, tag, skip=frozenset()):
+    """Run every test file under `paths` with the right runner. Return (exit code, summary line, failed keys).
+    The exit code alone is not trusted: each runner must also write a JUnit report showing at least one test really ran.
+    Failures listed in `skip` (withdrawn by the breaker) do not count."""
+    specs, units = suite_files(paths if isinstance(paths, (list, tuple)) else [paths])
+    if not specs and not units: return 5, "no test files", set()
+    failed, ran, total_skipped, notes = set(), 0, 0, []
+    worst = 0
+    for kind, files in (("playwright", specs), ("vitest", units)):
+        if not files: continue
+        rc, out, cases = run_runner(kind, files, tag)
+        if cases is None:
+            return 3, f"{kind} ended without writing its report (exit {rc}; killed, crashed or did not compile): no test can be trusted. " \
+                      + " | ".join(out.strip().splitlines()[-6:]), set()
+        f_here = {k for k, bad, _ in cases if bad}
+        ran += sum(1 for _, bad, sk in cases if not sk)
+        total_skipped += sum(1 for _, _, sk in cases if sk)
+        failed |= f_here
+        if rc != 0 and not f_here:
+            return 3, f"{kind} exited {rc} but its report lists no failing test (a crash outside the tests?): " \
+                      + " | ".join(out.strip().splitlines()[-6:]), set()
+        notes.append(f"{kind}: {len(cases)} tests, {len(f_here)} failed, {sum(1 for _, _, sk in cases if sk)} skipped")
+        worst = max(worst, rc)
+    real = failed - set(skip)
+    if ran < 1: return 3, f"no test really ran ({'; '.join(notes)})", set()
+    return (0 if not real else 1), "; ".join(notes) + (f"; withdrawn failures ignored: {len(failed & set(skip))}" if failed & set(skip) else ""), real
 
 
 def withdrawn():
-    """(node id, reason) pairs the breaker withdrew, and the invalid lines. Only full node ids that match exactly one
-    collected test count (a prefix such as '.1v1/breaker/test_' would otherwise withdraw whole files)."""
+    """(test id, reason) pairs the breaker withdrew, and the invalid lines. A test id is "<file>::<exact test title>"
+    and counts only if that file is the breaker's and really contains that title."""
     p = ROOT / WITHDRAWN
     if not p.exists(): return [], []
     lines = [l for l in p.read_text(encoding="utf-8", errors="replace").splitlines() if l.strip()]
-    col = run([sys.executable, "-m", "pytest", ".1v1/breaker", "--collect-only", "-q", "-p", "no:cacheprovider",
-               "--ignore", str(ROOT / MINOR)])
-    ids = {l.strip().replace("\\", "/") for l in col.stdout.splitlines() if "::" in l}
     ok, bad = [], []
     for line in lines:
         node, _, why = line.partition("|")
         node = node.strip().replace("\\", "/")
-        (ok if "::" in node and node in ids else bad).append((node, why.strip() or "no reason given"))
+        f, _, title = node.partition("::")
+        src = ROOT / f
+        good = bool(title) and f.startswith(".1v1/breaker/") and src.is_file() and title.split(" > ")[-1] in src.read_text(encoding="utf-8", errors="replace")
+        (ok if good else bad).append((node, why.strip() or "no reason given"))
     return ok, bad
 
 
 def pytest_gate(d, fails=None):
+    """Run one of the breaker's suites (.1v1/breaker without minor/, or .1v1/holdout)."""
     if not (ROOT / d).exists(): return False, f"{d} does not exist"
-    extra = ["--ignore", str(ROOT / MINOR)] if d == ".1v1/breaker" else []
-    if d == "tests": extra = []
+    paths = [ROOT / d]
     if d == ".1v1/breaker":
-        for node, _ in withdrawn()[0]: extra += ["--deselect", node]
-    rc, tail, keys = run_suite(ROOT / d, d.split("/")[-1], extra)
+        paths = [q for q in (ROOT / d).iterdir() if q.resolve() != (ROOT / MINOR).resolve()]
+    skip = {n for n, _ in withdrawn()[0]} if d == ".1v1/breaker" else set()
+    rc, tail, keys = run_suite(paths, d.split("/")[-1], skip)
     if fails is not None: fails |= keys
-    if rc == 5: return False, "no tests collected"
-    return rc == 0, tail
+    if rc == 5: return False, "no tests found"
+    return rc == 0, tail + (f"; failing: {', '.join(sorted(keys)[:5])}" if keys else "")
+
+
+def project_tests_gate():
+    """The project's own tests must really run: vitest (project config) and the offline Playwright suite, each with a
+    JUnit report showing tests ran and none failed. The check command's exit code is not trusted alone."""
+    results = []
+    xml = STATE / "junit-project-vitest.xml"; xml.unlink(missing_ok=True)
+    p = subprocess.run([NPX, "vitest", "run", "--reporter=default", "--reporter=junit", f"--outputFile.junit={xml}"],
+                       cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace", env=clean_env())
+    cases = junit_cases(xml, ROOT)
+    results.append(("vitest", p.returncode, cases))
+    for cfg in ("playwright.auth.config.ts",):
+        if not (ROOT / cfg).exists(): continue
+        x = STATE / "junit-project-pw.xml"; x.unlink(missing_ok=True)
+        env = clean_env(); env["PLAYWRIGHT_JUNIT_OUTPUT_NAME"] = str(x)
+        q = subprocess.run([NPX, "playwright", "test", "-c", cfg, "--reporter=list,junit"], cwd=ROOT, capture_output=True,
+                           text=True, encoding="utf-8", errors="replace", env=env)
+        results.append((cfg, q.returncode, junit_cases(x, ROOT)))
+    good, info = True, []
+    for name, rc, cs in results:
+        if cs is None: good = False; info.append(f"{name}: no JUnit report (exit {rc})"); continue
+        ran = sum(1 for _, _, sk in cs if not sk); bad = [k for k, f, _ in cs if f]
+        if rc != 0 or bad or ran < 1: good = False
+        info.append(f"{name}: {len(cs)} tests, {len(bad)} failed, exit {rc}" + (f" ({', '.join(bad[:3])})" if bad else ""))
+    return good, "; ".join(info)
 
 
 def orig_gate(current_fails):
-    """Rerun the suites with the first version of every breaker file the breaker edited. An edit must not hide a real failure."""
+    """Rerun the suites with the first version of every breaker file the breaker edited. An edit must not hide a real
+    failure. The originals are swapped in place (imports are relative to the project), then the edits are put back."""
     name = "edited breaker tests: original versions"
-    files = [p for p in ORIG.rglob("*.py")] if ORIG.exists() else []
+    files = [p for p in ORIG.rglob("*") if p.is_file()] if ORIG.exists() else []
     if not files: return (name, True, "no edits")
-    run_dir = STATE / "orig_run"  # outside the project: a full copy of the suites with the original versions swapped in
-    shutil.rmtree(run_dir, ignore_errors=True)
-    subs = [s for s in ("breaker", "holdout") if (ROOT / ".1v1" / s).exists()]
-    for sub in subs: shutil.copytree(ROOT / ".1v1" / sub, run_dir / sub, ignore=shutil.ignore_patterns("__pycache__"))
+    backup = STATE / "edited_backup"
+    shutil.rmtree(backup, ignore_errors=True)
     for p in files:
-        d = run_dir / p.relative_to(ORIG / ".1v1"); d.parent.mkdir(parents=True, exist_ok=True); shutil.copy2(p, d)
-    orig_fails = set()
-    for sub in subs: orig_fails |= run_suite(run_dir / sub, sub)[2]
-    skip = {"breaker/" + n.split(".1v1/breaker/", 1)[-1] for n, _ in withdrawn()[0]}
-    orig_fails = {k for k in orig_fails if not k.startswith("breaker/minor/") and k not in skip}
-    current_fails = {k for k in current_fails if not k.startswith("breaker/minor/") and k not in skip}
-    hidden = sorted(orig_fails - current_fails)  # fail with the originals, pass now
-    shutil.rmtree(run_dir, ignore_errors=True)
+        r = p.relative_to(ORIG).as_posix()
+        if (ROOT / r).exists(): (backup / r).parent.mkdir(parents=True, exist_ok=True); shutil.copy2(ROOT / r, backup / r)
+        (ROOT / r).parent.mkdir(parents=True, exist_ok=True); shutil.copy2(p, ROOT / r)
+    try:
+        skip = {n for n, _ in withdrawn()[0]}
+        orig_fails = set()
+        for sub in (".1v1/breaker", ".1v1/holdout"):
+            if (ROOT / sub).exists():
+                paths = [q for q in (ROOT / sub).iterdir() if q.resolve() != (ROOT / MINOR).resolve()]
+                orig_fails |= run_suite(paths, "orig-" + sub.split("/")[-1], skip)[2]
+    finally:
+        for p in files:
+            r = p.relative_to(ORIG).as_posix()
+            if (backup / r).exists(): shutil.copy2(backup / r, ROOT / r)
+            else: (ROOT / r).unlink(missing_ok=True)
+        shutil.rmtree(backup, ignore_errors=True)
+    hidden = sorted(orig_fails - set(current_fails))  # fail with the originals, pass now
     if not hidden: return (name, True, f"{len(files)} edited file(s); no failure hidden by an edit")
     return (name, False, f"edits turned these failures green: {', '.join(hidden[:5])}{' ...' if len(hidden) > 5 else ''}; "
             "the user must review the edits (approve-changes accepts them)")
 
 
+TITLE = re.compile(r"""\b(?:test|it)(?:\.\w+)?\s*\(\s*(["'`])(.+?)\1""")
+
+
 def questions_table():
     q = ROOT / ".1v1" / "questions.md"
     if not q.exists(): return
-    tests = []  # (name, name + the start of its body: docstrings and comments may cite IDs too)
+    tests = []  # (title, title + the start of its body: comments may cite IDs too)
     for d in (".1v1/breaker", ".1v1/holdout"):
-        for p in (ROOT / d).rglob("*.py") if (ROOT / d).exists() else []:
+        for p in (ROOT / d).rglob("*") if (ROOT / d).exists() else []:
+            if not (p.is_file() and TEST_FILE_RE.search(p.name)): continue
             src = p.read_text(encoding="utf-8", errors="replace")
-            defs = list(re.finditer(r"^\s*(?:async\s+)?def (test_\w+)", src, re.M))
+            defs = list(TITLE.finditer(src))
             for i, m in enumerate(defs):
                 end = defs[i + 1].start() if i + 1 < len(defs) else len(src)
-                tests.append((m.group(1), m.group(1)[5:].replace("_", " ") + " " + src[m.end():min(end, m.end() + 600)]))
+                tests.append((m.group(2), m.group(2) + " " + src[m.end():min(end, m.end() + 600)]))
     print("\nQUESTIONS (paste into the report verbatim; take each outcome from the breaker's QUESTIONS table):")
     print("| ID | Question (verbatim) | Tests found |")
     for line in q.read_text(encoding="utf-8", errors="ignore").splitlines():
         m = re.match(r"\s*([GTQ]\d+):\s*(.+)", line)
         if not m: continue
-        hits = [n for n, text in tests if re.search(rf"\b{m.group(1)}\b", text)]  # test_R4_T9_x counts for T9
+        hits = [n for n, text in tests if re.search(rf"(?<![A-Za-z0-9]){m.group(1)}(?![0-9])", text)]
         print(f"| {m.group(1)} | {m.group(2).strip()} | {', '.join(hits[:4]) + (' ...' if len(hits) > 4 else '') if hits else 'NONE: needs a reason'} |")
 
 
 def failing(nodes, show=True):
-    """Raw failing output of breaker tests."""
-    p = run([sys.executable, "-m", "pytest", *(nodes or [".1v1/breaker"]), "-q", "--tb=short", "-p", "no:cacheprovider", "-rf"])
-    if show: print(p.stdout[-20000:])
-    return p.returncode, p.stdout[-20000:]
+    """Raw failing output of breaker tests. nodes are test ids ("<file>::<title>") or files/folders; default all of
+    .1v1/breaker (minor/ included, for reading)."""
+    files = sorted({n.split("::", 1)[0] for n in nodes}) if nodes else [".1v1/breaker"]
+    specs, units = suite_files([ROOT / f for f in files])
+    outs, rc = [], 0
+    for kind, fs in (("playwright", specs), ("vitest", units)):
+        if not fs: continue
+        r, out, _ = run_runner(kind, fs, "failing")
+        rc = max(rc, r)
+        outs.append(f"$ {kind} {' '.join(fs)}\n{out[-12000:]}")
+    text_ = "\n\n".join(outs) or "no test files"
+    if show: print(text_[-20000:])
+    return rc, text_[-20000:]
 
 
 def template(name):
@@ -487,14 +574,15 @@ def finish(given_seal=""):
                   "no --seal given" if not given_seal else f"given {given_seal}, files {now}"))
     gates.append(("hook log intact", log_chain_ok(), "hash chain verified" if log_chain_ok() else "a line was edited or deleted"))
     env = env_fingerprint()
-    gates.append(("Python environment unchanged", env == fz.get("env"), f"{fz.get('env')} -> {env}" + ("" if env == fz.get("env") else
-                  ": packages, .pth files or sitecustomize changed during the loop")))
+    gates.append(("Node environment unchanged", env == fz.get("env"), f"{fz.get('env')} -> {env}" + ("" if env == fz.get("env") else
+                  ": node/npm version, a lockfile or node_modules changed during the loop")))
     a = run([sys.executable, str(SKILL / "scripts" / "audit.py")])
-    gates.append(("audit.py (U2/U3/U4/U11 scan)", a.returncode == 0, a.stdout.strip().splitlines()[-1] if a.stdout.strip() else ""))
+    gates.append(("audit.py (U2/U3/U4/U11 scan, new findings since approval)", a.returncode == 0,
+                  " | ".join(a.stdout.strip().splitlines()[-6:]) if a.stdout.strip() else ""))
     c = run(fz["check"], shell=True)
     gates.append((f"check command: {fz['check']}", c.returncode == 0, f"exit {c.returncode}"))
     if (ROOT / "tests").is_dir():  # the check command's exit code is not trusted alone either
-        good, info = pytest_gate("tests"); gates.append(("project tests really ran (JUnit report)", good, info))
+        good, info = project_tests_gate(); gates.append(("project tests really ran (JUnit reports)", good, info))
     fails = set()
     for d in (".1v1/breaker", ".1v1/holdout"):
         good, info = pytest_gate(d, fails); gates.append((f"{d} tests", good, info))
@@ -507,7 +595,7 @@ def finish(given_seal=""):
         gates.append(("withdrawn.txt lines are exact test ids", False,
                       "not a single collected test, so not withdrawn: " + "; ".join(n for n, _ in wbad)[:400]))
     if (ROOT / MINOR).exists():
-        rc, tail, _ = run_suite(ROOT / MINOR, "breaker")
+        rc, tail, _ = run_suite(ROOT / MINOR, "minor")
         gates.append(("MINOR breaker tests (reported, not a gate)", True, tail))
     s = load(STRIKES, {})
     gates.append(("strikes below 2", all(v < 2 for v in s.values()), json.dumps(s)))

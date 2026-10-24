@@ -2,7 +2,7 @@
 
 The orchestrator copies these into `.1v1/questions.md` as G1-G16, then adds the user's own questions (Q1...) and any task-specific ones it derives (T1...) by applying these generic probes to the Interface in the contract. The builder never sees this file.
 
-For each question the breaker writes at least one runnable test, named `test_<ID>_...`, and reports `fails`, `holds` or `cannot be tested` with a reason. Free tools first: hypothesis, fuzzing, mypy, ruff.
+For each question the breaker writes at least one runnable test, whose title starts with the ID (for example `T3: ...` or `G1 empty input ...`), and reports `fails`, `holds` or `cannot be tested` with a reason. Free tools first: seeded random inputs in loops, Playwright against the running app, vitest on exported modules, tsc, eslint.
 
 `N/A` is not an outcome for G1, G2, G3, G12, G13 or G14. For the others, "cannot be tested" needs a one-line reason tied to the contract's Interface; the orchestrator rejects vague reasons and sends the question back.
 

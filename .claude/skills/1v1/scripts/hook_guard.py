@@ -20,17 +20,20 @@ SKILL = pathlib.Path(__file__).resolve().parent.parent
 TMP = pathlib.Path(tempfile.gettempdir()).resolve()
 HOME = pathlib.Path.home().resolve()
 HOME_CLAUDE = (HOME / ".claude").resolve()
-PROT = re.compile(r"(?i)(^|[\s'\"(=/\\,:])(tests?[/\\]|\.1v1|\.claude|\.git[/\\]|evals[/\\]|conftest\.py|\.?pytest\.(ini|toml)|pyproject\.toml"
-                  r"|setup\.(cfg|py)|tox\.ini|\.?mypy\.ini|\.?ruff\.toml|\.coveragerc|\.flake8|noxfile\.py|makefile\b|claude\.md"
-                  r"|verify(-fast)?\b|test_\w+\.py|\w+_test\.py|sitecustomize|usercustomize|\.pth\b|pytest\.py|_pytest|pluggy)")
+PROT = re.compile(r"(?i)(^|[\s'\"(=/\\,:])(tests?[/\\]|e2e[/\\]|__tests__|\.1v1|\.claude|\.git[/\\]|evals[/\\]|node_modules"
+                  r"|package(-lock)?\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|yarn\.lock|\.npmrc|\.nvmrc|tsconfig[\w.-]*\.json|jsconfig\.json"
+                  r"|(vitest|vite|playwright|jest|eslint|babel|prettier|tsup)[\w.-]*\.config\.[\w.]+|\.eslintrc|\.prettierrc|\.babelrc"
+                  r"|makefile\b|claude\.md|agents\.md|verify(-fast)?\b|[\w.-]+\.(test|spec)\.[cm]?[jt]sx?\b|tsconfig\.tsbuildinfo)")
 # inline code: PowerShell here-strings, python -c "...", bash heredocs. Their insides are code, not shell.
-INLINE = re.compile(r"@'.*?'@|@\".*?\"@|\s-c\s+(\"(?:\\.|[^\"\\])*\"|'[^']*')|<<-?\s*['\"]?(\w+)['\"]?.*?\n\2\b", re.S)
+INLINE = re.compile(r"@'.*?'@|@\".*?\"@|\s-(?:c|e|p|-eval|-print)\s+(\"(?:\\.|[^\"\\])*\"|'[^']*')|<<-?\s*['\"]?(\w+)['\"]?.*?\n\2\b", re.S)
 WVERB = (r"sed\s+-i|perl\s+-\w*i|tee|mv|cp|rm|rmdir|unlink|truncate|touch|chmod|dd|ln|install|patch|mkdir|md"
          r"|git\s+(apply|checkout|restore|reset|clean|stash|commit|rm|mv|add|am|cherry-pick|revert|merge|rebase|pull)"
          r"|set-content|add-content|out-file|new-item|remove-item|move-item|copy-item|rename-item|clear-content|clear-item"
          r"|set-item|tee-object|expand-archive|sc|ac|ni|ri|del|erase|rd|move|copy|cpi|mi|ren|rni|clc")
 SHELL_W = re.compile(rf"(?i)(^|[{{(|]|\bxargs\s+|\bsudo\s+|-exec\s+)\s*({WVERB})(?=$|[\s;&|)])")
-CODE_W = re.compile(r"open\([^)]*['\"][rwax]*[wax+][rwax]*['\"]|\.write_(text|bytes)\(|\.write\(|\bos\.(remove|unlink|rename|replace|rmdir|truncate|makedirs|mkdir)\("
+CODE_W = re.compile(r"\b(fs\.|fsp\.|promises\.)?(writeFile|appendFile|createWriteStream|rm|rmdir|unlink|rename|mkdir|copyFile|cp|truncate|symlink|link|chmod|utimes|outputFile)(Sync)?\s*\("
+                    r"|\bBun\.write\(|\bDeno\.(writeTextFile|writeFile|remove|rename|mkdir)\("
+                    r"|open\([^)]*['\"][rwax]*[wax+][rwax]*['\"]|\.write_(text|bytes)\(|\.write\(|\bos\.(remove|unlink|rename|replace|rmdir|truncate|makedirs|mkdir)\("
                     r"|\bshutil\.|\.unlink\(|\.rename\(|\.touch\(|\.mkdir\(|py_compile\.compile|\bcfile\s*="
                     r"|(?i:\[(system\.)?io\.file\]::(write|append|delete|move|copy|replace|create|open\b(?!read))|\[(system\.)?io\.directory\]::(delete|move|create))")
 REDIR = re.compile(r"(?<![<>&\d=-])\d?>{1,2}\s*(?![&=])(\"[^\"]+\"|'[^']+'|[^\s;&|)]+)")
@@ -40,21 +43,25 @@ LOCKED = re.compile(r"(?i)\bunfreeze\b|--uninstall|\bapprove-changes\b|ONEV1_")
 NULLS = {"/dev/null", "$null", "nul", "null"}
 # Leak routes: Claude's transcripts and settings (~/.claude), the state folder, and the APIs that find them.
 PRIVATE = re.compile(r"(?i)\.claude\b|\.cla[?*\[]|SKILL_DIR|\b1v1-[0-9a-f]{6,}|1v1-['\"*?\[]|\b1v[*?\[]|['\"]1v1-(?!builder\b|breaker\b)")
-HOMEAPI = re.compile(r"(?i)expanduser|path\.home\s*\(|\bUSERPROFILE\b|\bHOMEPATH\b|\bHOMEDRIVE\b|\$env:APPDATA|%APPDATA%|environ[^\n]{0,20}APPDATA"
+HOMEAPI = re.compile(r"(?i)expanduser|path\.home\s*\(|\bhomedir\s*\(|process\.env\.(HOME|USERPROFILE|APPDATA)\b|\bUSERPROFILE\b|\bHOMEPATH\b|\bHOMEDRIVE\b|\$env:APPDATA|%APPDATA%|environ[^\n]{0,20}APPDATA"
                      r"|\$HOME\b|\$env:HOME|(^|[\s'\"=(])~([/\\]|$|[\s'\";])")
-TEMPDIR = re.compile(r"(?i)gettempdir|tempfile\.tempdir|\$env:TE?MP\b|%TE?MP%|\bTMPDIR\b|environ[^\n]{0,20}TE?MP")
+TEMPDIR = re.compile(r"(?i)gettempdir|\btmpdir\s*\(|process\.env\.(TMPDIR|TEMP|TMP)\b|tempfile\.tempdir|\$env:TE?MP\b|%TE?MP%|\bTMPDIR\b|environ[^\n]{0,20}TE?MP")
 CDVERB = r"(?:cd|chdir|pushd|push-location|set-location|sl)"
 SEG_CD = re.compile(rf"(?i)^\s*{CDVERB}(?:\s+(.*)|(?=[\\/.])(.*)|\s*)$", re.S)  # cd x, cd.., cd\, bare cd
 SEG_POP = re.compile(r"(?i)^\s*(popd|pop-location)\s*$")
 WALKUP = re.compile(r"(?i)getcwd\(\)\s*\)|cwd\(\)\.parent|\.parents?\b[^\n]{0,30}(cwd|getcwd)|chdir\s*\(|os\.pardir|\bsplit-path\b[^;\n]*-parent")
 DOTGLOB = re.compile(r"(?:^|[\s'\"/\\])\.[A-Za-z0-9_-]+[*?\[]")  # .cla?de, .c*  (not regex like '.*')
 INSTALL = re.compile(r"(?i)\bpip3?(\.exe)?\s+install\b|-m\s+pip\s+(install|uninstall)\b|\buv\s+(pip|add|sync|tool)\b|\bpoetry\s+(add|install)\b"
-                     r"|\bconda\s+install\b|\bsetx\b|setenvironmentvariable|\bnpm\s+(i|install)\b|\bpipx\b")
+                     r"|\bconda\s+install\b|\bsetx\b|setenvironmentvariable|\bpipx\b"
+                     r"|\bnpm\s+(i|in|ins|inst|insta|instal|install|isntall|add|ci|uninstall|un|remove|rm|r|update|up|upgrade|link|ln|exec|x|pkg|set-script|config)\b"
+                     r"|\b(pnpm|yarn|bun)\s+(add|install|i|remove|up|update|upgrade|dlx|link|exec)\b|\bnpx\s+(-y|--yes|-p|--package)\b|\bnpx\s+--?(?!no-install)"
+                     r"|\bplaywright\s+install\b|\bcorepack\b|\bnvm\s+(install|use|alias)\b")
 # `python verify` / `& .\verify` RUN the check; only that form is ignored when looking for writes to protected paths
-RUNCHECK = re.compile(r"(?i)(?:python(?:3|\.exe)?\s+(?:\.?[\\/])?|&\s*\.?[\\/])verify(?:-fast)?\b")
+RUNCHECK = re.compile(r"(?i)(?:python(?:3|\.exe)?\s+(?:\.?[\\/])?|&\s*\.?[\\/]|\bbash\s+(?:\.?[\\/])?|(?<![\w./])\./)verify(?:-fast)?\b"
+                      r"|\bnpx\s+(playwright\s+test|vitest(\s+run)?)\b[^;&|\n]*?-c\s+[\w.-]+\.config\.ts")
 # Building a path or command at runtime hides it from every rule here (the red-team used base64 to reach other
 # projects). Agents never need decoding, dynamic code or character arithmetic in a shell command, so these are blocked.
-OBFUSCATE = re.compile(r"(?i)b64decode|\bbase64\s+(-d|--decode)\b|frombase64string|-e(nc(odedcommand)?)?\s+[A-Za-z0-9+/=]{16,}|bytes\.fromhex|\.fromhex\(|codecs\.decode"
+OBFUSCATE = re.compile(r"(?i)b64decode|\batob\s*\(|buffer\.from\([^)]*['\"](base64|hex)['\"]|\bnew\s+function\s*\(|string\.fromcharcode|\bbase64\s+(-d|--decode)\b|frombase64string|-e(nc(odedcommand)?)?\s+[A-Za-z0-9+/=]{16,}|bytes\.fromhex|\.fromhex\(|codecs\.decode"
                        r"|(?<![\w.])(exec|eval|compile|__import__)\s*\(|\[char\]\s*\d|getattr\s*\(\s*(os|__builtins__|builtins)"
                        r"|invoke-expression|\biex\b|\[scriptblock\]::create|\[convert\]::from|\[string\]::join"
                        r"|\bcfile\s*=|\battrib\b[^;\n]*\+r|isreadonly")

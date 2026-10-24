@@ -1,6 +1,6 @@
 ---
 name: 1v1-builder
-description: 1v1 builder. Implements the contract in Python. Spawned only by the 1v1 orchestrator, never on its own.
+description: 1v1 builder. Implements the contract in TypeScript (Next.js + Node). Spawned only by the 1v1 orchestrator, never on its own.
 tools: Read, Edit, Write, MultiEdit, Bash, PowerShell, Glob, Grep
 ---
 

@@ -11,6 +11,8 @@ Changes made by install:
   2. .claude/agents/1v1-builder.md and 1v1-breaker.md: copied in. A different existing file with the
      same name is first saved as <name>.md.1v1-bak and restored on uninstall.
   3. .1v1/: working folder.
+  4. playwright.1v1.config.ts and vitest.1v1.config.ts (marked "created by 1v1"): run the breaker's suites in
+     .1v1/breaker and .1v1/holdout with the project's own Playwright / vitest setup. Frozen with the other checks.
 Claude Code loads agent files only at session start: after a first install, restart (claude --continue)
 unless the agents are already in ~/.claude/agents. Hooks load immediately.
 """
@@ -74,12 +76,51 @@ def copy_agents(dst_dir, label):
         shutil.copy2(f, dst)
 
 
+def base_config(names):
+    return next((n for n in names if (ROOT / n).exists()), None)
+
+
+def runner_configs():
+    """The two configs the breaker's suites run with. They extend the project's own configs so the breaker drives the
+    real app the same way the project's tests do (same web servers, aliases, setup files)."""
+    out = {}
+    pw = base_config(["playwright.auth.config.ts", "playwright.config.ts"])
+    if pw:
+        out[PW_CONFIG] = (f"// {MARK}: runs the breaker's Playwright suites (.1v1/breaker, .1v1/holdout) with {pw}'s setup.\n"
+                          "// Frozen at approval like every other check; removed by install.py --uninstall --purge.\n"
+                          "import os from \"node:os\";\nimport path from \"node:path\";\nimport { defineConfig } from \"@playwright/test\";\n"
+                          f"import base from \"./{pw[:-3]}\";\n\n"
+                          "export default defineConfig({\n  ...base,\n  testDir: \"./.1v1\",\n"
+                          "  testMatch: [\"breaker/**/*.spec.ts\", \"holdout/**/*.spec.ts\", \"scratch/**/*.spec.ts\"],\n"
+                          "  outputDir: path.join(os.tmpdir(), \"boutiqo-breaker-pw\"),\n  forbidOnly: true,\n});\n")
+    vt = base_config(["vitest.config.ts", "vitest.config.mts", "vite.config.ts"])
+    if vt:
+        out[VITEST_CONFIG] = (f"// {MARK}: runs the breaker's vitest suites (.1v1/breaker, .1v1/holdout) with {vt}'s setup.\n"
+                              "// Frozen at approval like every other check; removed by install.py --uninstall --purge.\n"
+                              "import { defineConfig, mergeConfig } from \"vitest/config\";\n"
+                              f"import base from \"./{vt.rsplit('.', 1)[0]}\";\n\n"
+                              "export default mergeConfig(base, defineConfig({\n  test: {\n"
+                              "    include: [\".1v1/breaker/**/*.test.ts\", \".1v1/holdout/**/*.test.ts\", \".1v1/scratch/**/*.test.ts\"],\n"
+                              "    allowOnly: false,\n  },\n}));\n")
+    return out
+
+
+def write_runner_configs():
+    for name, body in runner_configs().items():
+        p = ROOT / name
+        if p.exists() and MARK not in p.read_text(encoding="utf-8", errors="replace")[:300]:
+            say(f"config: {name} EXISTS and is not ours: left alone (the breaker's suites may not run)"); continue
+        say(f"config: write {name} ({MARK})")
+        if not dry: p.write_text(body, encoding="utf-8")
+
+
 def install():
     say(f"settings: add PreToolUse hook -> {sp}")
     say(f"  matcher: {MATCHER} (every tool; the hook decides)")
     say(f"  command: {HOOK['command']}" + ("  (shell: powershell)" if WIN else ""))
     copy_agents(agents_dst, "agents")
     if "--global-agents" in args: copy_agents(global_dst, "global agents")
+    write_runner_configs()
     say(f"folder: create {ROOT / '.1v1'}")
     if dry: return
     s = load_settings()
@@ -89,8 +130,8 @@ def install():
     sp.parent.mkdir(parents=True, exist_ok=True)
     sp.write_text(json.dumps(s, indent=2), encoding="utf-8")
     (ROOT / ".1v1").mkdir(exist_ok=True)
-    miss = [m for m in ("pytest", "hypothesis", "mypy", "ruff") if importlib.util.find_spec(m) is None]
-    if miss: print("MISSING (pip install): " + " ".join(miss))
+    miss = [t for t in ("tsc", "eslint", "vitest", "playwright") if not (ROOT / "node_modules" / ".bin" / t).exists()]
+    if miss: print("MISSING (npm install): " + " ".join(miss))
     print("installed hook + agents. Hook is active now. Agents load at session start: if 1v1-builder and "
           "1v1-breaker are not in your Agent tool list, restart Claude Code (claude --continue).")
     print('to remove: python "' + str(skill / "scripts" / "install.py") + '" --uninstall')

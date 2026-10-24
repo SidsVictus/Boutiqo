@@ -20,7 +20,7 @@ The breaker attacks this surface only.>
 ## Rules (each must map to a check)
 - R1: <testable statement, e.g. "booking the same slot twice returns SlotTakenError">
 - R2: ...
-Each rule lists how it is checked: `pytest`, `hypothesis property`, `mypy`, `ruff`, or `CLI run`.
+Each rule lists how it is checked: `playwright` (the running app), `vitest` (an exported module), `tsc`, `eslint`, or `CLI run`.
 
 ## Invariants
 - <things true for ALL inputs, e.g. "total billed == sum of line items">
@@ -31,13 +31,13 @@ The breaker turns these into property tests.
 the breaker must say which tests used invented data.>
 
 ## Agent may decide alone
-- <naming, internal structure, helper libs from stdlib / already-installed only>
+- <naming, internal structure, helper libs already in package.json only>
 
 ## Agent must ask first
 - <new dependencies, schema changes, deleting data, network calls, anything irreversible>
 
 ## Severity
-BLOCKING = breaks any R or invariant, crashes, loses data, or fails mypy/ruff.
+BLOCKING = breaks any R or invariant, crashes, loses data, or fails tsc/eslint.
 MINOR = style, naming, perf under 2x, wording. Logged, never looped on.
 
 ## Done means
@@ -75,4 +75,4 @@ Universal questions (G) and the universal contract (U) always apply; see `univer
 - IDs are assigned by the orchestrator in order and never reused.
 - The breaker answers each with at least one runnable test and reports: `fails`, `holds`, or `cannot be tested` (with reason).
 - Questions needing taste ("does this screen feel right?") go back to the user.
-- The builder never reads this file. It sees a question only as a failing test named `test_Q<id>_...`, so it cannot special-case the answer in advance.
+- The builder never reads this file. It sees a question only as a failing test whose title starts with `Q<id>`, so it cannot special-case the answer in advance.

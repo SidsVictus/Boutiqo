@@ -1,4 +1,4 @@
-"""Shared helpers. State lives OUTSIDE the project so agents cannot edit it."""
+"""Shared helpers (TypeScript / Node edition, adapted for Boutiqo). State lives OUTSIDE the project so agents cannot edit it."""
 import hashlib, json, os, pathlib, re, site, sys, sysconfig, tempfile, time
 
 for _s in (sys.stdout, sys.stderr):  # Windows pipes default to cp1252; non-ASCII output must never crash a script
@@ -9,20 +9,26 @@ TEST_MODE = os.environ.get("ONEV1_TEST") == "1"  # ONEV1_ROOT / ONEV1_STATE are 
 ROOT = pathlib.Path(os.environ["ONEV1_ROOT"] if TEST_MODE and os.environ.get("ONEV1_ROOT") else os.getcwd()).resolve()
 STATE = pathlib.Path(os.environ["ONEV1_STATE"] if TEST_MODE and os.environ.get("ONEV1_STATE")
                      else pathlib.Path(tempfile.gettempdir()) / ("1v1-" + hashlib.sha256(str(ROOT).encode()).hexdigest()[:12]))
-CACHES = {"__pycache__", ".mypy_cache", ".ruff_cache", ".pytest_cache", ".hypothesis"}  # regenerated; never trusted
+# Regenerated or installed folders: never walked (hashing node_modules on every check would take minutes) and never
+# writable by an agent (write_ok -> in_skipped). The Node environment fingerprint covers node_modules instead.
+CACHES = {"node_modules", ".next", ".turbo", "test-results", "playwright-report", "blob-report", "coverage", ".netlify",
+          ".expo", ".vercel", "__pycache__", ".vite", ".vitest", ".eslintcache"}
 PROT_NAMES = {n.lower() for n in {
-    "conftest.py", "pytest.ini", ".pytest.ini", "pytest.toml", ".pytest.toml", "tox.ini", "setup.cfg", "setup.py",
-    "mypy.ini", ".mypy.ini", "ruff.toml", ".ruff.toml", ".coveragerc", ".flake8", "pyproject.toml", "verify", "verify-fast",
-    "Makefile", "noxfile.py", ".gitlab-ci.yml", ".pre-commit-config.yaml", "CLAUDE.md", "sitecustomize.py", "usercustomize.py"}}
-PROT_TOP = {"tests", "test", ".1v1", ".github", ".claude", "evals", ".git"}
-# Modules that decide how tests run. A file or package with one of these names anywhere in the project could stand in
-# for the real one (a project-level pytest.py replaces pytest), so they are protected wherever they appear.
-TEST_MODULES = {"pytest", "_pytest", "pluggy", "py", "iniconfig", "hypothesis", "unittest", "doctest", "coverage", "xdist",
-                "sitecustomize", "usercustomize", "conftest", "site", "typing", "builtins"}
+    "package.json", "package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", ".npmrc", ".nvmrc", ".node-version",
+    "verify", "verify-fast", "Makefile", ".gitlab-ci.yml", ".pre-commit-config.yaml", "CLAUDE.md", "AGENTS.md",
+    "tsconfig.tsbuildinfo"}}
+# Test, type and lint configuration, whatever the extension: vitest.config.ts, playwright.auth.config.ts,
+# eslint.config.mjs, tsconfig.json, .eslintrc.json, babel/jest/prettier config...
+CONFIG_RE = re.compile(r"(?i)^(vitest|vite|playwright|jest|eslint|babel|prettier|tsup)([.\w-]*)\.config(\.[\w-]+)*\.[cm]?[jt]s$"
+                       r"|^tsconfig([.\w-]*)\.json$|^\.eslintrc|^\.prettierrc|^\.babelrc|^jsconfig\.json$")
+TEST_FILE_RE = re.compile(r"(?i)\.(test|spec)\.[cm]?[jt]sx?$")
+PROT_TOP = {"tests", "test", "e2e", ".1v1", ".github", ".claude", "evals", ".git", "node_modules"}
+TEST_MODULES = set()  # (Python only) kept so callers that read it still work
+CODE_EXT = (".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".sql", ".css")
 BREAKER_OWN = (".1v1/breaker/", ".1v1/holdout/", ".1v1/scratch/")  # the only places the breaker may write
 SCRATCH = ".1v1/scratch/"  # breaker probes: free to create and delete, never a gate, wiped by finish
 BUILDER_SCRATCH = "_scratch"  # builder probes: never tracked or audited, wiped before every check run, so nothing can depend on it
-WITHDRAWN = ".1v1/breaker/withdrawn.txt"  # "<test node id> | reason" lines: the breaker's own wrong tests, shown to the user
+WITHDRAWN = ".1v1/breaker/withdrawn.txt"  # "<test id> | reason" lines: the breaker's own wrong tests, shown to the user
 MINOR = ".1v1/breaker/minor"  # MINOR failing tests: run and reported, not a gate (they are never sent to the builder)
 AGENTS = {"1v1-builder": "builder", "1v1-breaker": "breaker"}
 FROZEN = STATE / "frozen.json"
@@ -37,32 +43,21 @@ BREAKER_PROMPT = "Read .1v1/BREAKER_INPUT.md and follow it exactly. It holds you
 INPUTS = {BUILDER_INPUT, BREAKER_INPUT}
 MARK = "created by 1v1"
 SUB_TOOLS = {"Read", "Write", "Edit", "MultiEdit", "Bash", "PowerShell", "Glob", "Grep", "TodoWrite", "BashOutput", "KillShell"}
-_shadow = None
+# The breaker's suites run with these configs (written by install.py, frozen at approval like every other config).
+PW_CONFIG = "playwright.1v1.config.ts"
+VITEST_CONFIG = "vitest.1v1.config.ts"
 
 
 def shadow_names():
-    """Top-level names a project module must not take: the standard library and installed distributions, minus the
-    project's own names recorded at freeze. Cached in the state folder (computing it is slow)."""
-    global _shadow
-    if _shadow is None:
-        f = STATE / "shadow.json"
-        try: _shadow = set(json.loads(f.read_text(encoding="utf-8")))
-        except (OSError, ValueError): _shadow = set(sys.stdlib_module_names)
-    return _shadow
+    """Python only (a project module named like an installed one). TypeScript resolves imports by path: nothing to do."""
+    return set()
 
 
 def compute_shadow_names():
-    import importlib.metadata
-    names = set(sys.stdlib_module_names) | set(importlib.metadata.packages_distributions())
-    own = {p.stem if p.suffix == ".py" else p.name for p in ROOT.iterdir() if p.suffix == ".py" or (p / "__init__.py").exists()}
-    return sorted((names - own) | TEST_MODULES)
+    return []
 
 
 def module_name(r):
-    """The importable top-level name a path defines, or None. r is project-relative posix."""
-    parts = r.split("/")
-    if parts[-1] == "__init__.py" and len(parts) >= 2: return parts[-2]
-    if parts[-1].endswith((".py", ".pyc", ".pyd", ".so")): return parts[-1].split(".")[0]
     return None
 
 
@@ -76,33 +71,29 @@ def is_breaker_own(r):
 
 
 def breaker_may_write(r):
-    """The breaker's own folders, minus config that could change how a whole gate runs. Its conftest.py (fixtures for its
-    own tests) is allowed: it only affects the breaker's suites, which the builder cannot touch."""
-    return is_breaker_own(r) and (r.split("/")[-1] == "conftest.py" or not is_config(r))
+    """The breaker's own folders, minus config that could change how a whole gate runs (a vitest/playwright/tsconfig file
+    there would steer the suites). Helper modules (_helpers.ts) and fixtures are fine: only the breaker's suites use them."""
+    return is_breaker_own(r) and not is_config(r)
 
 
 def is_config(r):
-    name = r.split("/")[-1].lower()
-    return name in PROT_NAMES or name.endswith(".pth") or module_name(r) in TEST_MODULES
+    name = r.split("/")[-1]
+    return name.lower() in PROT_NAMES or CONFIG_RE.search(name) is not None
 
 
 def is_compiled(r):
-    """Compiled modules outside __pycache__ (a sourceless .pyc imports like a module but the audit cannot read it)."""
-    return r.lower().endswith((".pyc", ".pyo", ".pyd", ".so")) and "__pycache__" not in r.split("/")
+    return False  # (Python only: sourceless .pyc). Minified bundles live in .next/ and node_modules/, never walked.
 
 
 def is_protected(r):
     parts = r.split("/")
-    name = parts[-1].lower()
-    m = module_name(r)
-    top_level = len(parts) == 1 or (len(parts) == 2 and parts[-1] == "__init__.py")
-    return (parts[0].lower() in PROT_TOP or any(p.lower() in ("tests", "test") for p in parts[:-1])
-            or is_config(r) or is_compiled(r) or (top_level and m in shadow_names())
-            or re.fullmatch(r"test_.*\.py|.*_test\.py", name) is not None)
+    name = parts[-1]
+    return (parts[0].lower() in PROT_TOP or any(p.lower() in ("tests", "test", "__tests__", "e2e") for p in parts[:-1])
+            or any(p in CACHES for p in parts[:-1]) or is_config(r) or TEST_FILE_RE.search(name) is not None)
 
 
 def is_source(r):
-    return r.endswith(".py") and not is_protected(r)
+    return r.endswith(CODE_EXT) and not is_protected(r) and not r.startswith(BUILDER_SCRATCH + "/")
 
 
 def is_venv(d):
@@ -110,8 +101,8 @@ def is_venv(d):
 
 
 def walk():
-    """Every project file except caches, the project's own .git and real virtual environments (pyvenv.cfg).
-    A folder merely *named* venv or node_modules is walked: hiding code there must not hide it from the guard."""
+    """Every project file except regenerated/installed folders (CACHES), the project's own .git, the builder's
+    _scratch/ and real virtual environments."""
     for dp, dns, fns in os.walk(ROOT):
         here = pathlib.Path(dp)
         dns[:] = [d for d in dns if d not in CACHES and not (here == ROOT and d in (".git", BUILDER_SCRATCH)) and not is_venv(here / d)]
@@ -176,31 +167,31 @@ def fingerprint(files):
 
 
 def env_fingerprint():
-    """Hash of what can change how Python and pytest behave outside the project: installed distributions,
-    .pth files, sitecustomize/usercustomize. A builder that pip-installs a plugin or drops a .pth changes it."""
-    dirs = {p for p in [*site.getsitepackages(), site.getusersitepackages(), sysconfig.get_paths().get("purelib", ""),
-                        os.environ.get("ONEV1_EXTRA_SITE", "")] if p}  # the extra dir lets selftest prove this works
+    """Hash of what can change how Node, npm and the test runners behave outside the source: node and npm versions,
+    every lockfile, and npm's record of what is installed in each node_modules (root and nested apps such as android/).
+    A builder that installs or edits a package changes it."""
+    import subprocess
     items = []
-    for d in sorted(dirs):
-        dp = pathlib.Path(d)
-        if not dp.is_dir(): continue
-        for e in sorted(dp.iterdir(), key=lambda x: x.name):
-            if e.name.endswith((".dist-info", ".egg-info", ".egg-link")): items.append(e.name)
-            elif e.suffix == ".pth" or e.name in ("sitecustomize.py", "usercustomize.py"):
-                try: items.append(e.name + ":" + sha(e))
-                except OSError: items.append(e.name)
+    for cmd in (["node", "--version"], ["npm", "--version"]):
+        try: items.append(" ".join(cmd) + "=" + subprocess.run(cmd, capture_output=True, text=True, timeout=60).stdout.strip())
+        except (OSError, subprocess.SubprocessError): items.append(" ".join(cmd) + "=missing")
+    for base in [ROOT, *[p for p in ROOT.iterdir() if p.is_dir() and (p / "package.json").exists() and p.name not in CACHES]]:
+        for f in ("package-lock.json", "node_modules/.package-lock.json"):
+            q = base / f
+            items.append(f"{q.relative_to(ROOT).as_posix()}:{sha(q) if q.exists() else 'none'}")
     return hashlib.sha256("\n".join(items).encode()).hexdigest()[:16]
 
 
 def clean_env():
-    """Environment for the final gates: nothing an agent could have set to steer Python or pytest."""
-    bad = ("PYTHON", "PYTEST", "HYPOTHESIS", "COV_", "COVERAGE")
+    """Environment for the final gates: nothing an agent could have set to steer Node or the test runners.
+    REUSE_SERVERS is dropped on purpose: a gate must never test a stale server someone else started."""
+    bad = ("PYTHON", "PYTEST", "NODE_OPTIONS", "NODE_PATH", "NODE_ENV", "VITEST", "JEST", "TS_NODE", "NPM_CONFIG", "REUSE_SERVERS",
+           "PW_TEST", "PLAYWRIGHT_JUNIT", "FORCE_COLOR")
     keep = {"PYTHONIOENCODING", "PYTHONUTF8"}
     env = {k: v for k, v in os.environ.items() if k in keep or not k.upper().startswith(bad)}
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     env["PYTHONIOENCODING"] = "utf-8"
-    # bytecode is read only from a fresh empty folder: a crafted .pyc in the project can never stand in for its source
-    env["PYTHONPYCACHEPREFIX"] = tempfile.mkdtemp(prefix="1v1pyc-")
+    env["CI"] = "1"
     return env
 
 

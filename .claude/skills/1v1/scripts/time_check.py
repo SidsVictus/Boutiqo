@@ -1,4 +1,4 @@
-"""Time the check command. Usage: time_check.py "<cmd>". Writes verify-fast (Python) if over 60s."""
+"""Time the check command. Usage: time_check.py "<cmd>". Writes verify-fast (bash: types, lint, unit tests) if over 60s."""
 import os, subprocess, sys, time
 from common import *
 
@@ -14,10 +14,11 @@ if r.returncode:
     print("\n".join((r.stdout + r.stderr).strip().splitlines()[-15:]))
 if dt > 60:
     p = ROOT / "verify-fast"
-    p.write_text(f"#!/usr/bin/env python3\n# {MARK}: fast subset for the loop; the full check runs in Step 6\n"
-                 "import subprocess, sys\n"
-                 "for s in ([\"pytest\", \"-q\", \"-x\", \"-p\", \"no:cacheprovider\", \"--ignore=.1v1\"], [\"ruff\", \"check\", \".\", \"--extend-exclude\", \".1v1\"]):\n"
-                 "    if subprocess.run([sys.executable, \"-m\", *s]).returncode: sys.exit(1)\n")
+    p.write_text(f"#!/usr/bin/env bash\n# {MARK}: fast subset for the loop (types, lint, unit tests); the full check runs in Step 6\n"
+                 "set -u\ncd \"$(dirname \"$0\")\"\n"
+                 "npx --no-install tsc --noEmit -p tsconfig.json || exit 1\n"
+                 "npx --no-install eslint . --ignore-pattern \".1v1/**\" --ignore-pattern \"_scratch/**\" || exit 1\n"
+                 "npx --no-install vitest run || exit 1\necho \"verify-fast: green\"\n")
     p.chmod(0o755)
-    print("OVER 60s: wrote verify-fast for the loop (run: python verify-fast); the full command runs in Step 6")
+    print("OVER 60s: wrote verify-fast for the loop (run: bash ./verify-fast); the full command runs in Step 6")
 sys.exit(r.returncode)

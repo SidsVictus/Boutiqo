@@ -1,3 +1,16 @@
+# 1v1 (TypeScript / Node edition): what is tested
+
+This copy was adapted for Boutiqo (Next.js + TypeScript) in October 2026. The checks are `tsc`, `eslint`, `vitest` and
+Playwright; the Python-specific parts (pytest, mypy, ruff, module shadowing, `.pyc` checks) were replaced.
+
+## Script tests (this edition)
+`python3 "<skill>/scripts/selftest_ts.py"` from a project with `node_modules` -> 60/60: protected-path rules, the hook's
+decision for each actor (writes, npm/npx installs, shell and `node -e` writes, home/temp lookups, reading the contract),
+freeze/check/revert, the vitest suite runner and its JUnit gate (a suite where nothing ran is not a pass), withdrawn tests,
+and the audit baseline (only findings added after approval fail).
+
+The notes below are from the original Python edition and describe the same guard design.
+
 # 1v1: what is tested and what is not
 
 Tested on Windows 11, Claude Code 2.1.303, Python 3.14, October 2026. Evals ran as headless `claude -p` sessions in throwaway projects; the tester played the user, and every resume is a restart. Separate sessions with no shared context graded the runs from files, the hook log and transcripts.
