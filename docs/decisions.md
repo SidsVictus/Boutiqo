@@ -163,11 +163,23 @@ control the database is guaranteed to reject.
 
 ## File size / mime-type limits
 
-Not specified anywhere in the source material. Documented default: **10MB**
-per file, `image/jpeg`, `image/png`, `image/webp`, `image/heic` only (a phone
-camera photo comfortably fits; HEIC is included since it's the default format
-on iPhones). Enforced in three independent places so a change to one doesn't
-silently desync the others: the `files` table CHECK constraints
-(`0002_files_and_triggers.sql`), `src/lib/r2.ts`'s exported
-`ALLOWED_MIME_TYPES`/`MAX_FILE_SIZE_BYTES`, and the Zod schema in
-`src/lib/validation/file.ts` that imports those same constants.
+**No size limit.** Photos go from the browser straight to R2 with a presigned
+`PUT`, never through the app server, so a cap protects nothing (R2 itself
+accepts at most ~5 GiB in a single PUT). The `files.size_bytes` column only has
+to be positive (`0014_multi_photo_orders.sql` replaced the 10MB CHECK from
+`0002`). Only `image/jpeg`, `image/png`, `image/webp` and `image/heic` are
+accepted (HEIC is the default format on iPhones), enforced by the `files`
+table CHECK constraint, `src/lib/r2.ts`'s `ALLOWED_MIME_TYPES` and the Zod
+schema in `src/lib/validation/file.ts`.
+
+## Cloth photos: many per order
+
+An order holds any number of cloth photos: they are the `files` rows with that
+`order_id`, `kind = 'cloth_photo'` and `upload_status = 'uploaded'`.
+`orders.cloth_photo_file_id` stays as the order's cover (the first photo
+confirmed). `get_order_tracking()` returns all the object keys oldest first
+(`cloth_object_keys`; `cloth_object_key` is the first), and `/api/track/:token`
+returns `clothPhotoUrls` plus `clothPhotoUrl` (the first) for older clients.
+A PUT that doesn't go through is reported to `/api/uploads/confirm` with
+`outcome: "failed"`, so its row doesn't stay `pending`.
+

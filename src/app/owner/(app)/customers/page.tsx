@@ -2,14 +2,17 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/session/SessionContext";
 import { listCustomers } from "@/lib/data/customers";
 import { Input } from "@/components/ds/Input";
 import { Button } from "@/components/ds/Button";
-import { Search, User } from "@/components/app/icons";
+import { IconButton } from "@/components/ds/IconButton";
+import { Pencil, Search, User } from "@/components/app/icons";
 import type { Customer } from "@/lib/supabase/types";
 
 export default function OwnerCustomersPage() {
+  const router = useRouter();
   const { session } = useSession();
   const boutique = session?.kind === "owner" ? session.boutique : null;
   const [search, setSearch] = React.useState("");
@@ -53,12 +56,17 @@ export default function OwnerCustomersPage() {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {customers.map((c) => (
-            <Link key={c.id} href={`/owner/customers/${c.id}`} className="bq-order-row">
-              <div className="bq-order-row__main">
-                <span className="bq-order-row__title">{c.name}</span>
-                <span className="bq-order-row__meta">{c.phone || "Phone number not added "}</span>
-              </div>
-            </Link>
+            <div key={c.id} className="bq-row-split">
+              <Link href={`/owner/customers/${c.id}`} className="bq-order-row">
+                <div className="bq-order-row__main">
+                  <span className="bq-order-row__title">{c.name}</span>
+                  <span className="bq-order-row__meta">{c.phone || "Phone number not added "}</span>
+                </div>
+              </Link>
+              <IconButton label="Edit customer" variant="outline" onClick={() => router.push(`/owner/customers/${c.id}?edit=1`)}>
+                <Pencil size={18} />
+              </IconButton>
+            </div>
           ))}
         </div>
       )}

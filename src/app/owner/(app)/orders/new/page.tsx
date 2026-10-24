@@ -11,7 +11,8 @@ import { StepperPills, type StepDef } from "@/components/app/StepperPills";
 import { MeasurementGrid, type MeasurementValues } from "@/components/app/MeasurementGrid";
 import { MeasurementGuide } from "@/components/app/MeasurementGuide";
 import { VoiceTypeToggle, VoiceMeasurementInput } from "@/components/app/VoiceTypeToggle";
-import { ClothPhotoUpload, uploadDeferredClothPhoto } from "@/components/app/ClothPhotoUpload";
+import { ClothPhotoUpload, uploadClothPhoto, type PendingPhoto } from "@/components/app/ClothPhotoUpload";
+import { runPool } from "@/lib/data/uploads";
 import { CalendarGrid } from "@/components/app/CalendarGrid";
 import { Input } from "@/components/ds/Input";
 import { Select } from "@/components/ds/Select";
@@ -20,7 +21,7 @@ import { commonDressTypes } from "@/lib/validation/order";
 import { computeLoadByDate } from "@/lib/calc/calendarLoad";
 import { formatMoney, formatShortDate } from "@/lib/calc/format";
 import type { Customer, Order } from "@/lib/supabase/types";
-import { MEASUREMENT_FIELDS, type MeasurementField } from "@/lib/supabase/types";
+import type { MeasurementField } from "@/lib/supabase/types";
 
 const STEPS: StepDef[] = [
   { key: "measurements", letter: "A", label: "Measurements" },
@@ -46,9 +47,10 @@ export default function NewOrderPage() {
   const [measurements, setMeasurements] = React.useState<MeasurementValues>({});
   // Deferred: the real presign route requires an existing order id for a
   // cloth_photo upload, which doesn't exist until step E succeeds — so this
-  // step only holds the selected File, and the actual upload happens after
+  // step only holds the selected files, and the actual uploads happen after
   // createOrder returns. See docs/phase3-report.md "Cloth-photo-in-wizard mismatch".
-  const [clothPhotoFile, setClothPhotoFile] = React.useState<File | null>(null);
+  const [clothPhotos, setClothPhotos] = React.useState<PendingPhoto[]>([]);
+  const [uploadProgress, setUploadProgress] = React.useState<{ done: number; total: number } | null>(null);
   const [garmentType, setGarmentType] = React.useState("");
   const [garmentTypeOther, setGarmentTypeOther] = React.useState("");
   const [tailorName, setTailorName] = React.useState("");
@@ -66,21 +68,10 @@ export default function NewOrderPage() {
       setCustomers(rows);
       if (preselect && rows.some((c) => c.id === preselect)) setCustomerId(preselect);
     });
-    // "New order" prefills step A with the last order's figures (handoff §6);
-    // the same fetched list also drives the delivery-date calendar's load.
-    listOrders(boutique.id).then((rows) => {
-      setExistingOrders(rows);
-      if (rows.length === 0) return;
-      const last = [...rows].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
-      const prefill: MeasurementValues = {};
-      for (const field of MEASUREMENT_FIELDS) {
-        const v = last[field];
-        if (typeof v === "number") prefill[field] = String(v);
-      }
-      setMeasurements(prefill);
-      setTotalAmount(String(last.total_amount));
-      setAdvanceAmount(String(last.advance_amount));
-    });
+    // Measurements and amounts always start blank: a stored order belongs to
+    // one customer and must never seed another's. The list only drives the
+    // delivery-date calendar's load.
+    listOrders(boutique.id).then(setExistingOrders);
   }, [boutique]);
 
   if (!boutique) return null;
@@ -129,15 +120,24 @@ export default function NewOrderPage() {
         styleNotes,
         measurements: measurementPayload,
       });
-      if (clothPhotoFile) {
-        // A failed photo upload shouldn't block the (already-saved) order —
-        // surface it via a toast (which outlives this component, unlike
+      if (clothPhotos.length > 0) {
+        // Failed photo uploads shouldn't block the (already-saved) order —
+        // surface them via a toast (which outlives this component, unlike
         // `error` state) since we navigate away immediately after.
-        try {
-          await uploadDeferredClothPhoto(activeBoutique.id, order.id, clothPhotoFile);
-        } catch (err) {
-          const reason = err instanceof ApiError ? ` (${err.message})` : "";
-          flash(`Order saved, but the cloth photo failed to upload${reason}. Add it from the order record.`, "danger");
+        let done = 0;
+        const failures: string[] = [];
+        setUploadProgress({ done, total: clothPhotos.length });
+        await runPool(clothPhotos, 3, async (photo) => {
+          try {
+            await uploadClothPhoto(activeBoutique.id, order.id, photo.file);
+          } catch (err) {
+            failures.push(err instanceof ApiError ? err.message : "upload failed");
+          }
+          setUploadProgress({ done: ++done, total: clothPhotos.length });
+        });
+        if (failures.length > 0) {
+          const which = failures.length === clothPhotos.length ? (failures.length === 1 ? "the cloth photo" : "the cloth photos") : `${failures.length} of ${clothPhotos.length} cloth photos`;
+          flash(`Order saved, but ${which} failed to upload (${failures[0]}). Add ${failures.length === 1 ? "it" : "them"} from the order record.`, "danger");
         }
       }
       router.push(`/owner/orders/${order.id}/confirm`);
@@ -145,6 +145,7 @@ export default function NewOrderPage() {
       setError(err instanceof ApiError ? err.message : "Could not save the order. Try again.");
     } finally {
       setSaving(false);
+      setUploadProgress(null);
     }
   }
 
@@ -169,7 +170,7 @@ export default function NewOrderPage() {
         </div>
       )}
 
-      {step === 1 && <ClothPhotoUpload boutiqueId={boutique.id} orderId={null} onFileSelected={setClothPhotoFile} />}
+      {step === 1 && <ClothPhotoUpload boutiqueId={boutique.id} orderId={null} pending={clothPhotos} onPendingChange={setClothPhotos} />}
 
       {step === 2 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 480 }}>
@@ -207,7 +208,7 @@ export default function NewOrderPage() {
           Back
         </Button>
         <Button onClick={next} disabled={saving}>
-          {step === STEPS.length - 1 ? (saving ? "Saving…" : "Save order") : "Continue"}
+          {step === STEPS.length - 1 ? (saving ? (uploadProgress ? `Uploading photos ${uploadProgress.done}/${uploadProgress.total}…` : "Saving…") : "Save order") : "Continue"}
         </Button>
       </div>
     </div>

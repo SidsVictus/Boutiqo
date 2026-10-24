@@ -43,6 +43,18 @@ export async function createCustomer(input: CreateCustomerInput): Promise<Custom
   });
 }
 
+export interface UpdateCustomerInput {
+  name?: string;
+  phone?: string;
+  address?: string;
+  instagramHandle?: string;
+}
+
+/** PATCH /api/customers/:id — changes only the fields given. */
+export async function updateCustomer(customerId: string, input: UpdateCustomerInput): Promise<Customer> {
+  return apiFetch<Customer>(`/api/customers/${customerId}`, { method: "PATCH", body: JSON.stringify(input) });
+}
+
 /** Owner updates a customer's phone (e.g. to send the tracking link). RLS
  * (customers_update) limits this to the caller's own boutique. */
 export async function updateCustomerPhone(customerId: string, phone: string): Promise<Customer> {

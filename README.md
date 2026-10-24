@@ -19,13 +19,43 @@ with three audiences:
   no custom Express layer: the Supabase client (or the route handlers) talks
   to Postgres directly.
 - **Cloudflare R2** — every binary file (cloth photos, boutique logos) via
-  presigned URLs. Never Supabase Storage.
+  presigned URLs. Never Supabase Storage. An order can have any number of
+  photos and there is no size limit; see "Photo storage (R2 CORS)" below.
 - **Zod** — validation enforced server-side at every API boundary.
 - **Design system** — the design handoff's CSS imported verbatim
   (`src/styles/`, `.bq-*` classes, tokens). Tailwind was removed; React
   wrappers for the handoff components live in `src/components/ds/`,
   product-specific pieces in `src/components/app/`.
 - **Vitest** (unit/integration), **Playwright** (browser E2E).
+
+### Fonts
+
+Playfair Display (display), Inter (text) and JetBrains Mono (numerals), loaded
+with `next/font/google` in `src/app/layout.tsx` and exposed through
+`--font-display`, `--font-sans` and `--font-mono` in
+`src/styles/tokens/typography.css`. No font files are stored in the repo.
+
+### Photo storage (R2 CORS)
+
+The browser uploads each photo straight to R2 with a presigned `PUT`, so the
+bucket must allow the app's origin or every upload fails (the file row stays
+`pending`). In the Cloudflare dashboard open **R2 → your bucket → Settings →
+CORS policy → Add CORS policy** and paste:
+
+```json
+[
+  {
+    "AllowedOrigins": ["https://boutiqoo.netlify.app", "http://localhost:3000"],
+    "AllowedMethods": ["GET", "PUT", "HEAD"],
+    "AllowedHeaders": ["Content-Type"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+Add any other origin the app is served from (a Netlify deploy preview, a custom
+domain). The Android app loads the same site, so it needs no separate entry.
 
 ### Data layer
 

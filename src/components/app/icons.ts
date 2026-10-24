@@ -31,4 +31,5 @@ export {
   EyeOff,
   Bell,
   Megaphone,
+  Pencil,
 } from "lucide-react";

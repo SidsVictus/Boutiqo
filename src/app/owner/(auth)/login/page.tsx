@@ -13,7 +13,7 @@ import { useAuthPage } from "@/lib/auth/useAuthPage";
 export default function OwnerLoginPage() {
   const router = useRouter();
   const { login } = useSession();
-  const { urlError } = useAuthPage();
+  const { urlError, ready } = useAuthPage();
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
@@ -44,6 +44,10 @@ export default function OwnerLoginPage() {
   }
 
   const banner = notice ?? urlError;
+
+  // Blank until the session check says nobody is signed in, so a returning
+  // user is never shown a form they don't need.
+  if (!ready) return <main className="bq-auth-bg" aria-busy="true" />;
 
   return (
     <main className="bq-auth-bg">

@@ -1,11 +1,11 @@
-import { apiFetch } from "./supabaseClient";
+import { apiFetch, db } from "./supabaseClient";
 import { ApiError } from "./store";
 import type { FileKind } from "@/lib/supabase/types";
 
-/** Mirrors src/lib/r2.ts's constants (server-only, so duplicated here rather
- * than imported into client code). Keep in sync with that file. */
+/** Mirrors src/lib/r2.ts's list (server-only, so duplicated here rather
+ * than imported into client code). Keep in sync with that file. There is no
+ * size limit. */
 export const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic"] as const;
-export const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 
 export interface PresignResult {
   fileId: string;
@@ -17,9 +17,6 @@ export async function presignUpload(kind: FileKind, mimeType: string, sizeBytes:
   void boutiqueId; // the real route derives the boutique from the session.
   if (!ALLOWED_MIME_TYPES.includes(mimeType as (typeof ALLOWED_MIME_TYPES)[number])) {
     throw new ApiError("validation_failed", "Only JPEG, PNG, WEBP or HEIC images are allowed");
-  }
-  if (sizeBytes > MAX_FILE_SIZE_BYTES) {
-    throw new ApiError("validation_failed", "File is larger than 10MB");
   }
   const body = kind === "cloth_photo" ? { kind, orderId, mimeType, sizeBytes } : { kind, mimeType, sizeBytes };
   const result = await apiFetch<{ fileId: string; objectKey: string; uploadUrl: string; expiresInSeconds: number }>("/api/uploads/presign", {
@@ -59,9 +56,32 @@ export function uploadFileWithProgress(uploadUrl: string, file: File, onProgress
   });
 }
 
-/** POST /api/uploads/confirm. */
-export async function confirmUpload(fileId: string): Promise<void> {
-  await apiFetch("/api/uploads/confirm", { method: "POST", body: JSON.stringify({ fileId }) });
+/** POST /api/uploads/confirm. `outcome: "failed"` reports that the PUT to storage did not go through. */
+export async function confirmUpload(fileId: string, outcome: "uploaded" | "failed" = "uploaded"): Promise<void> {
+  await apiFetch("/api/uploads/confirm", { method: "POST", body: JSON.stringify({ fileId, outcome }) });
+}
+
+/** The order's uploaded cloth photos, oldest first. RLS limits this to the caller's own boutique. */
+export async function listClothPhotos(orderId: string): Promise<{ id: string }[]> {
+  const { data, error } = await db()
+    .from("files")
+    .select("id")
+    .eq("order_id", orderId)
+    .eq("kind", "cloth_photo")
+    .eq("upload_status", "uploaded")
+    .order("created_at", { ascending: true });
+  if (error) throw new ApiError("query_failed", "Could not load this order's photos");
+  return (data ?? []) as { id: string }[];
+}
+
+/** Runs `worker` over `items`, at most `limit` at a time. Workers must not throw. */
+export async function runPool<T>(items: T[], limit: number, worker: (item: T) => Promise<void>): Promise<void> {
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, async () => {
+      while (next < items.length) await worker(items[next++]);
+    }),
+  );
 }
 
 /** GET /api/files/:id/download-url — a real, short-lived presigned GET URL. */

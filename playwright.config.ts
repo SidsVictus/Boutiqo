@@ -1,4 +1,10 @@
 import { defineConfig, devices } from "@playwright/test";
+import fs from "node:fs";
+
+// Use the sandbox's pre-installed Chromium when there is one (PLAYWRIGHT_CHROMIUM_PATH
+// overrides); otherwise leave it to Playwright's own browser download.
+const CHROMIUM_CANDIDATES = [process.env.PLAYWRIGHT_CHROMIUM_PATH, "/opt/pw-browsers/chromium-1194/chrome-linux/chrome", "/opt/pw-browsers/chromium"];
+const executablePath = CHROMIUM_CANDIDATES.find((p): p is string => !!p && fs.existsSync(p));
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -13,7 +19,7 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"], launchOptions: { executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" } },
+      use: { ...devices["Desktop Chrome"], launchOptions: { executablePath } },
     },
   ],
   webServer: {

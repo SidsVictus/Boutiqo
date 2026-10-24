@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Cormorant_Garamond } from "next/font/google";
+import { Cormorant_Garamond, Inter, JetBrains_Mono, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import { SessionProvider } from "@/lib/session/SessionContext";
 import { ToastProvider } from "@/lib/session/ToastContext";
@@ -7,6 +7,12 @@ import { ShellBridge } from "@/components/app/ShellBridge";
 
 // Serif used across the sign-in and account screens (see .bq-auth-card).
 const authSerif = Cormorant_Garamond({ subsets: ["latin"], weight: ["500", "600"], style: ["normal", "italic"], variable: "--font-auth", display: "swap" });
+
+// The design system's three families (see src/styles/tokens/typography.css):
+// display, body and numerals. Self-hosted by next/font at build time.
+const display = Playfair_Display({ subsets: ["latin"], variable: "--font-playfair", display: "swap" });
+const sans = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
+const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains", display: "swap" });
 
 export const metadata: Metadata = {
   title: "Boutiqo",
@@ -30,7 +36,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={authSerif.variable}>
+    <html lang="en" className={[authSerif, display, sans, mono].map((f) => f.variable).join(" ")}>
       <body>
         <SessionProvider>
           <ToastProvider>{children}</ToastProvider>

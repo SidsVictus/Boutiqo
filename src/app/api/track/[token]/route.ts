@@ -16,6 +16,8 @@ interface OrderTrackingRow {
   boutique_name: string;
   boutique_phone: string | null;
   cloth_object_key: string | null;
+  /** Every uploaded cloth photo, oldest first. */
+  cloth_object_keys: string[] | null;
 }
 
 // No-login customer tracking page (§8). Deliberately NOT a broad "anon can SELECT
@@ -39,7 +41,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tok
 
   if (error || !data) return apiNotFound("Tracking link not found");
 
-  const clothPhotoUrl = data.cloth_object_key ? await presignDownloadUrl(data.cloth_object_key) : null;
+  const keys = data.cloth_object_keys ?? (data.cloth_object_key ? [data.cloth_object_key] : []);
+  const clothPhotoUrls = await Promise.all(keys.map((key) => presignDownloadUrl(key)));
 
   return apiOk({
     orderCode: data.order_code,
@@ -52,6 +55,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tok
     paid: data.paid,
     boutiqueName: data.boutique_name,
     boutiquePhone: data.boutique_phone,
-    clothPhotoUrl,
+    clothPhotoUrls,
+    // The first photo, for older clients that show a single one.
+    clothPhotoUrl: clothPhotoUrls[0] ?? null,
   });
 }

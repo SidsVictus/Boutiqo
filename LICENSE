@@ -41,6 +41,6 @@ source code, but you may not present your derivative as "Boutiqo", nor
 republish the excluded materials as your own.
 
 Third-party dependencies remain under their respective licences (see
-package.json / package-lock.json). Font binaries are not distributed with
-this repository and are governed by their own licences; see
-public/fonts/README.md.
+package.json / package-lock.json). The Playfair Display, Inter and JetBrains
+Mono fonts are fetched from Google Fonts at build time (next/font) under the
+SIL Open Font License; no font binaries are stored in this repository.

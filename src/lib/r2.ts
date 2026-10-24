@@ -14,9 +14,8 @@ import { randomUUID } from "node:crypto";
 export const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic"] as const;
 export type AllowedMimeType = (typeof ALLOWED_MIME_TYPES)[number];
 
-// 10MB — the design bundle doesn't specify a limit; this is a documented default
-// (see docs/decisions.md) generous enough for a phone camera photo.
-export const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+// No app-level size cap: a photo is sent straight from the browser to R2, never
+// through this server. (R2 itself accepts at most ~5 GiB in a single PUT.)
 
 const MIME_TO_EXT: Record<AllowedMimeType, string> = {
   "image/jpeg": "jpg",
@@ -73,7 +72,9 @@ export type ObjectKeyParams =
 /**
  * Tenant-scoped, collision-safe object key. A fresh random file id per upload
  * means retries/replacements never collide and old objects are never overwritten
- * in place (the DB's logo_file_id / cloth_photo_file_id pointer is what "current" means).
+ * in place. An order can hold any number of cloth photos; its cloth_photo_file_id
+ * only points at the first one (the cover), and the logo pointer is what "current"
+ * means for the boutique logo.
  */
 export function buildObjectKey(params: ObjectKeyParams): { objectKey: string; fileId: string } {
   const fileId = randomUUID();

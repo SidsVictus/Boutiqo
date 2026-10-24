@@ -18,7 +18,6 @@ import S3rver from "s3rver";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import {
   ALLOWED_MIME_TYPES,
-  MAX_FILE_SIZE_BYTES,
   buildObjectKey,
   deleteObject,
   getR2Client,
@@ -172,19 +171,14 @@ describe("upload validation (server-side, not just an <input accept>)", () => {
     expect(result.success).toBe(false);
   });
 
-  it("rejects an oversized file", () => {
-    const result = presignUploadSchema.safeParse({
-      kind: "boutique_logo",
-      mimeType: "image/png",
-      sizeBytes: MAX_FILE_SIZE_BYTES + 1,
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it("accepts every allowed mime type at the size boundary", () => {
+  it("has no size cap, but still needs a positive whole number of bytes", () => {
     for (const mimeType of ALLOWED_MIME_TYPES) {
-      const result = presignUploadSchema.safeParse({ kind: "boutique_logo", mimeType, sizeBytes: MAX_FILE_SIZE_BYTES });
-      expect(result.success).toBe(true);
+      for (const sizeBytes of [1, 10 * 1024 * 1024 + 1, 2_000_000_000]) {
+        expect(presignUploadSchema.safeParse({ kind: "boutique_logo", mimeType, sizeBytes }).success).toBe(true);
+      }
+    }
+    for (const sizeBytes of [0, -1, 1.5]) {
+      expect(presignUploadSchema.safeParse({ kind: "boutique_logo", mimeType: "image/png", sizeBytes }).success).toBe(false);
     }
   });
 

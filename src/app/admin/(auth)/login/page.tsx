@@ -10,12 +10,16 @@ import { useSession } from "@/lib/session/SessionContext";
 
 export default function AdminLoginPage() {
   const router = useRouter();
-  const { loginAdmin } = useSession();
+  const { session, loginAdmin } = useSession();
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
   const [suspendedNotice, setSuspendedNotice] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    if (session?.kind === "admin") router.replace("/admin/dashboard");
+  }, [session, router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -31,6 +35,10 @@ export default function AdminLoginPage() {
     }
     router.push("/admin/dashboard");
   }
+
+  // Blank while the session check is in flight, and for an admin who is
+  // already signed in (the effect above is sending them to their dashboard).
+  if (session === undefined || session?.kind === "admin") return <main className="bq-auth-bg" aria-busy="true" />;
 
   return (
     <main className="bq-auth-bg">

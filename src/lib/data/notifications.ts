@@ -22,10 +22,10 @@ const MISSING_TABLE = /does not exist|could not find the table|schema cache|PGRS
 /** Activity + announcements, newest first, with the unread count since the user last opened the bell. */
 export async function loadFeed(): Promise<Feed> {
   const client = db();
-  const [{ data: notes, error: e1 }, { data: anns, error: e2 }, { data: userRes }] = await Promise.all([
+  const [{ data: notes, error: e1 }, { data: anns, error: e2 }, { data: sessionRes }] = await Promise.all([
     client.from("notifications").select("id, title, link, created_at").order("created_at", { ascending: false }).limit(40),
     client.from("announcements").select("id, title, body, created_at").order("created_at", { ascending: false }).limit(20),
-    client.auth.getUser(),
+    client.auth.getSession(),
   ]);
   const err = e1 ?? e2;
   if (err) {
@@ -38,7 +38,7 @@ export async function loadFeed(): Promise<Feed> {
   ].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
   let lastSeen = "";
-  const userId = userRes.user?.id;
+  const userId = sessionRes.session?.user.id;
   if (userId) {
     const { data: read } = await client.from("notification_reads").select("last_seen_at").eq("user_id", userId).maybeSingle();
     lastSeen = read?.last_seen_at ?? "";
@@ -50,9 +50,9 @@ export async function loadFeed(): Promise<Feed> {
 /** Everything currently in the bell counts as seen. */
 export async function markFeedSeen(): Promise<void> {
   const client = db();
-  const { data } = await client.auth.getUser();
-  if (!data.user) return;
-  await client.from("notification_reads").upsert({ user_id: data.user.id, last_seen_at: new Date().toISOString() }, { onConflict: "user_id" });
+  const { data } = await client.auth.getSession();
+  if (!data.session) return;
+  await client.from("notification_reads").upsert({ user_id: data.session.user.id, last_seen_at: new Date().toISOString() }, { onConflict: "user_id" });
 }
 
 /** Owner/support admins: post an announcement to every boutique. */
