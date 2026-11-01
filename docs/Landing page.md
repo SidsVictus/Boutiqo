@@ -29,7 +29,7 @@ Boutiqo Android app on your phone.*
 | Route | `/landing` — brand-new, referenced nowhere, touches no test |
 | Mood | Light throughout, plum accents (no dark hero, no carpet PNG) |
 | Motion | Ambient loops + scroll reveals, all off under `prefers-reduced-motion` |
-| Primary CTA | "Get the app" → the EAS build page (below) + QR card for desktop |
+| Primary CTA | "Get the app" → the EAS build page (below) + QR card (all screen sizes) |
 | Card visual | The full, scannable QR (plum `#4a071e` modules on blush, from the static EC-H matrix) rendered as a three.js tile field: a slow vortex assembly (~3s — every tile spirals in from a swirling shell with velocity streaks, tumble and white-hot→red→plum heat, snapping centre-first), then the code is **completely pristine and still** (no effects) for the scan window, and the same spiral plays backwards to dissolve it at 7s — 8s loop; the "b" logo (`android/assets/splash-icon.png`, its own colours) as a small centre watermark; sparse signal-red `#ff254c` dust drifts left to right; static SVG fallback |
 | Language | en-IN, ₹ amounts, "colour"/"colours" spelled consistently |
 
@@ -183,7 +183,7 @@ library.
 | 6 | **Load calendar** | facts | 3×3 cells; load dots pop on reveal in sequence; ambient: the busiest dot breathes opacity |
 | 7 | **Balance bar** | facts | advance segment (plum) + balance segment (blush) split on reveal; ₹ figures count in with the reveal (no JS counter — static text, bar animates) |
 | 8 | **Spool of thread** | hero corner / download band | slow continuous rotation, 14s, blush stroke at low opacity (ambient) |
-| 9 | **QR card** | hero (desktop) + download | blush stage with the EC-H QR as an `InstancedMesh` of plum `#4a071e` boxes (one per module): vortex assembly 0–3s (per-tile spiral of radius/angle/depth, velocity-aligned streak stretch, tumble, heat colour, back-out snap, centre-first stagger), pristine still hold 3.3–7s (no effects — the scan window), spiral reversed for dissolve 7–8s; "b" logo (`splash-icon.png`, own colours, 26% @ centre) as watermark; sparse signal-red `#ff254c` dust (22 points, 2 layers) drifts L→R on a cycle envelope; camera = pointer parallax only (dead still otherwise); static SVG shows under reduced motion / no WebGL (three via client dynamic import, code-split) |
+| 9 | **QR card** | hero + download (all screen sizes) | blush stage with the EC-H QR as an `InstancedMesh` of plum `#4a071e` boxes (one per module): vortex assembly 0–3s (per-tile spiral of radius/angle/depth, velocity-aligned streak stretch, tumble, heat colour, back-out snap, centre-first stagger), pristine still hold 3.3–7s (no effects — the scan window), spiral reversed for dissolve 7–8s; "b" logo (`splash-icon.png`, own colours, 26% @ centre) as watermark; sparse signal-red `#ff254c` dust (22 points, 2 layers) drifts L→R on a cycle envelope; camera = pointer parallax only (dead still otherwise); static SVG shows under reduced motion / no WebGL (three via client dynamic import, code-split) |
 
 Reveals: one client component, `Reveal.tsx` — IntersectionObserver adds
 `is-in` once at 15% visibility; CSS transitions do the work. No animation

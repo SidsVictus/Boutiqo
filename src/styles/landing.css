@@ -175,9 +175,9 @@
   transform: translateX(4px);
 }
 
-/* ---------- QR card ---------- */
+/* ---------- QR card (every screen size: on a phone it can be scanned from another device) ---------- */
 .bq-lp-qrcard {
-  display: none;
+  display: flex;
   flex-direction: column;
   align-items: center;
   gap: 10px;
@@ -283,6 +283,8 @@
 }
 .bq-lp-cta {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   align-items: center;
   gap: var(--space-6);
   margin-top: var(--space-7);
@@ -706,6 +708,7 @@
 .bq-lp-download .bq-lp-qrcard {
   background: var(--blush-50);
   border: none;
+  justify-self: start; /* its own width on a phone, not the full grid column */
 }
 .bq-lp-download .bq-lp-qr {
   width: 210px;
@@ -891,9 +894,6 @@
   }
   .bq-lp-h2 {
     font-size: var(--fs-4xl);
-  }
-  .bq-lp-qrcard {
-    display: flex;
   }
   .bq-lp-split {
     grid-template-columns: 1.05fr 1fr;
